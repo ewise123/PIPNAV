@@ -137,15 +137,20 @@ def compute_badge(
     has_session: bool,
     is_stale: bool,
 ) -> str:
-    """Return the highest-priority status badge. Priority: S > !U > !M > ~ > check > ?"""
+    """Return all applicable status badges concatenated."""
     if git_status is None:
         return "[? ]"
+
+    badges: list[str] = []
     if has_session:
-        return "[S ]"
+        badges.append("[S]")
     if git_status.ahead > 0:
-        return "[!U]"
+        badges.append("[!U]")
     if git_status.is_dirty:
-        return "[!M]"
+        badges.append("[!M]")
     if is_stale:
-        return "[~ ]"
-    return "[✓ ]"
+        badges.append("[~]")
+
+    if not badges:
+        return "[✓]"
+    return "".join(badges)

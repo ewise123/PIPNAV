@@ -81,7 +81,7 @@ def test_compute_badge_session() -> None:
     from pipnav.core.git import GitStatus
 
     gs = GitStatus("main", 0, 0, 0, 0, 0, None, False)
-    assert compute_badge(gs, True, False) == "[S ]"
+    assert compute_badge(gs, True, False) == "[S]"
 
 
 def test_compute_badge_unpushed() -> None:
@@ -102,11 +102,18 @@ def test_compute_badge_stale() -> None:
     from pipnav.core.git import GitStatus
 
     gs = GitStatus("main", 0, 0, 0, 0, 0, None, False)
-    assert compute_badge(gs, False, True) == "[~ ]"
+    assert compute_badge(gs, False, True) == "[~]"
 
 
 def test_compute_badge_clean() -> None:
     from pipnav.core.git import GitStatus
 
     gs = GitStatus("main", 0, 0, 0, 0, 0, None, False)
-    assert compute_badge(gs, False, False) == "[✓ ]"
+    assert compute_badge(gs, False, False) == "[✓]"
+
+
+def test_compute_badge_multiple() -> None:
+    from pipnav.core.git import GitStatus
+
+    gs = GitStatus("main", 2, 0, 0, 3, 0, None, True)
+    assert compute_badge(gs, True, False) == "[S][!U][!M]"
