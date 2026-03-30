@@ -35,7 +35,7 @@ def get_git_status(path: Path) -> GitStatus | None:
     """Return git status for path, or None if not a git repo. Never raises."""
     logger = get_logger()
     try:
-        from git import InvalidGitRepositoryError, Repo
+        from git import Repo
 
         repo = Repo(path)
     except Exception as exc:

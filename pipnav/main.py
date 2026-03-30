@@ -11,6 +11,25 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
 
+from pipnav.core.config import PipNavConfig, load_config, update_config
+from pipnav.core.git import GitStatus, compute_badge, get_git_status
+from pipnav.core.launcher import launch_claude, launch_vscode
+from pipnav.core.logging import setup_logging
+from pipnav.core.notes import ProjectNotes, cycle_tag, load_notes, set_note
+from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
+from pipnav.core.search import filter_projects
+from pipnav.core.sessions import SessionInfo, load_sessions, record_session
+from pipnav.core.utils import read_readme_preview
+from pipnav.ui.boot_screen import BootScreen
+from pipnav.ui.files_tab import FilesTab
+from pipnav.ui.header import PipNavHeader
+from pipnav.ui.help_overlay import HelpScreen
+from pipnav.ui.log_tab import LogTab
+from pipnav.ui.project_detail import ProjectDetail
+from pipnav.ui.project_list import ProjectEntry, ProjectList
+from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.sessions_tab import SessionsTab
+
 PIPBOY_THEME = Theme(
     name="pipboy",
     primary="#8EFE55",
@@ -36,6 +55,7 @@ PIPBOY_THEME = Theme(
     },
 )
 
+
 class PipBoyInput(Input):
     """Input with no background tint on focus."""
 
@@ -49,59 +69,17 @@ class PipBoyInput(Input):
     """
 
 
-from pipnav.core.config import PipNavConfig, load_config, update_config
-from pipnav.core.git import GitStatus, compute_badge, get_git_status
-from pipnav.core.launcher import launch_claude, launch_vscode
-from pipnav.core.logging import setup_logging
-from pipnav.core.notes import (
-    ProjectNotes,
-    cycle_tag,
-    load_notes,
-    set_note,
-)
-from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
-from pipnav.core.search import filter_projects
-from pipnav.core.sessions import SessionInfo, load_sessions, record_session
-from pipnav.core.utils import read_readme_preview
-from pipnav.ui.boot_screen import BootScreen
-from pipnav.ui.files_tab import FilesTab
-from pipnav.ui.header import PipNavHeader
-from pipnav.ui.help_overlay import HelpScreen
-from pipnav.ui.log_tab import LogTab
-from pipnav.ui.project_detail import ProjectDetail
-from pipnav.ui.project_list import ProjectEntry, ProjectList
-from pipnav.ui.search_bar import SearchBar
-from pipnav.ui.sessions_tab import SessionsTab
-
-
 class PipNavApp(App):
     """Fallout Pip-Boy themed TUI project launcher."""
 
     CSS_PATH = "ui/app.tcss"
     TITLE = "PipNav"
 
+    # Only non-character keys in BINDINGS — single-char keys handled in on_key
     BINDINGS = [
-        ("q", "quit", "Quit"),
         ("escape", "quit_or_close", "Back/Quit"),
-        ("j", "cursor_down", "Down"),
-        ("k", "cursor_up", "Up"),
-        ("l", "focus_right", "Focus Right"),
-        ("h", "focus_left", "Focus Left"),
         ("backspace", "go_back", "Back"),
-        ("v", "open_vscode", "VS Code"),
-        ("c", "open_claude", "Claude"),
-        ("r", "resume_claude", "Resume"),
-        ("slash", "start_search", "Search"),
-        ("1", "show_tab('STAT')", "STAT"),
-        ("2", "show_tab('FILES')", "FILES"),
-        ("3", "show_tab('LOG')", "LOG"),
-        ("4", "show_tab('SESSIONS')", "SESSIONS"),
-        ("t", "cycle_tag", "Tag"),
-        ("n", "edit_note", "Note"),
         ("f5", "refresh", "Refresh"),
-        ("grave_accent", "toggle_crt", "CRT"),
-        ("tilde", "toggle_crt", "CRT"),
-        ("question_mark", "show_help", "Help"),
     ]
 
     def __init__(self) -> None:
@@ -115,10 +93,8 @@ class PipNavApp(App):
         self._notes: dict[str, ProjectNotes] = {}
         self._current_tab: str = "STAT"
         self._editing_note: bool = False
-        # CRT flicker state
         self._crt_timer: object | None = None
         self._crt_bright: bool = True
-        # Navigation stack for drilling into folders
         self._nav_stack: list[tuple[str, ...]] = []
         self._current_roots: tuple[str, ...] = ()
 
@@ -143,23 +119,64 @@ class PipNavApp(App):
         self._notes = load_notes()
         self._current_roots = self._config.project_roots
 
-        # Hide search bar and note input initially
         self.query_one("#search-bar", SearchBar).display = False
         self.query_one("#note-input", PipBoyInput).display = False
 
-        # CRT flicker effect
         if self._config.crt_effects:
             self._enable_crt()
-
-        # Show boot screen if CRT effects are on (otherwise skip)
-        if self._config.crt_effects:
             self.push_screen(BootScreen())
 
-        # Focus the project list
         self.query_one("#project-list", ProjectList).focus_list()
-
-        # Load projects in background
         self._load_projects()
+
+    # --- Key handling ---
+    # Single-char bindings go here so they're suppressed when an Input has focus.
+
+    def _input_has_focus(self) -> bool:
+        """Return True if any Input widget currently has focus."""
+        focused = self.focused
+        return isinstance(focused, Input)
+
+    def on_key(self, event: Key) -> None:
+        """Handle all single-character keybindings, suppressing them during text input."""
+        if event.key == "tab":
+            event.stop()
+            event.prevent_default()
+            self.action_next_tab()
+            return
+
+        # Let Input widgets handle their own keys
+        if self._input_has_focus():
+            return
+
+        key_actions: dict[str, str] = {
+            "q": "quit",
+            "j": "cursor_down",
+            "k": "cursor_up",
+            "l": "focus_right",
+            "h": "focus_left",
+            "v": "open_vscode",
+            "c": "open_claude",
+            "r": "resume_claude",
+            "slash": "start_search",
+            "1": "show_tab('STAT')",
+            "2": "show_tab('FILES')",
+            "3": "show_tab('LOG')",
+            "4": "show_tab('SESSIONS')",
+            "t": "cycle_tag",
+            "n": "edit_note",
+            "grave_accent": "toggle_crt",
+            "tilde": "toggle_crt",
+            "question_mark": "show_help",
+        }
+
+        action = key_actions.get(event.key)
+        if action:
+            event.stop()
+            event.prevent_default()
+            self.run_action(action)
+
+    # --- Project loading ---
 
     @work(exclusive=True, thread=True)
     def _load_projects(self) -> None:
@@ -173,7 +190,7 @@ class PipNavApp(App):
             else:
                 statuses[str(project.path)] = None
 
-        self.app.call_from_thread(self._update_project_list, projects, statuses)
+        self.call_from_thread(self._update_project_list, projects, statuses)
 
     def _update_project_list(
         self,
@@ -204,15 +221,13 @@ class PipNavApp(App):
     @on(ProjectList.Activated)
     def _on_project_activated(self, event: ProjectList.Activated) -> None:
         """Drill into folder when Enter is pressed."""
-        path = event.path
-        self._drill_into(path)
+        self._drill_into(event.path)
 
     def _drill_into(self, path: Path) -> None:
         """Drill into a folder's subdirectories."""
         if not path:
             return
 
-        # Check if this folder has subdirectories worth drilling into
         try:
             subdirs = [
                 d for d in sorted(path.iterdir(), key=lambda p: p.name.lower())
@@ -225,7 +240,6 @@ class PipNavApp(App):
             self.notify("No subdirectories to open", severity="warning")
             return
 
-        # Push current roots onto the stack and drill into this folder
         self._nav_stack.append(self._current_roots)
         self._current_roots = (str(path),)
         self._load_projects()
@@ -244,7 +258,6 @@ class PipNavApp(App):
     def _update_title(self) -> None:
         """Update the app subtitle to show current location."""
         if self._nav_stack:
-            # Show the current folder name we're inside
             root = Path(self._current_roots[0])
             self.sub_title = f"/{root.name}"
         else:
@@ -263,21 +276,12 @@ class PipNavApp(App):
         notes = self._notes.get(str(path), ProjectNotes())
         readme = read_readme_preview(path)
 
-        # Update STAT tab
-        detail = self.query_one("#STAT", ProjectDetail)
-        detail.update_detail(name, path, git_status, session, notes, readme)
-
-        # Update FILES tab
-        files_tab = self.query_one("#FILES", FilesTab)
-        files_tab.project_path = path
-
-        # Update LOG tab
-        log_tab = self.query_one("#LOG", LogTab)
-        log_tab.project_path = path
-
-        # Update SESSIONS tab
-        sessions_tab = self.query_one("#SESSIONS", SessionsTab)
-        sessions_tab.project_path = path
+        self.query_one("#STAT", ProjectDetail).update_detail(
+            name, path, git_status, session, notes, readme
+        )
+        self.query_one("#FILES", FilesTab).project_path = path
+        self.query_one("#LOG", LogTab).project_path = path
+        self.query_one("#SESSIONS", SessionsTab).project_path = path
 
     def _selected_project_path(self) -> Path | None:
         """Return the path of the currently selected project."""
@@ -285,13 +289,6 @@ class PipNavApp(App):
         return entry.path if entry else None
 
     # --- Tab switching ---
-
-    def on_key(self, event: Key) -> None:
-        """Intercept Tab before Textual's focus system consumes it."""
-        if event.key == "tab":
-            event.stop()
-            event.prevent_default()
-            self.action_next_tab()
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
@@ -353,14 +350,12 @@ class PipNavApp(App):
 
     def action_start_search(self) -> None:
         """Open the search bar."""
-        search_bar = self.query_one("#search-bar", SearchBar)
-        search_bar.is_searching = True
+        self.query_one("#search-bar", SearchBar).is_searching = True
 
     @on(SearchBar.QueryChanged)
     def _on_search_query(self, event: SearchBar.QueryChanged) -> None:
         """Filter projects by search query."""
-        filtered = filter_projects(event.query, self._all_projects)
-        self._rebuild_list(filtered)
+        self._rebuild_list(filter_projects(event.query, self._all_projects))
 
     @on(SearchBar.SearchClosed)
     def _on_search_closed(self, event: SearchBar.SearchClosed) -> None:
@@ -374,9 +369,7 @@ class PipNavApp(App):
         """Cycle tag on the selected project."""
         path = self._selected_project_path()
         if path:
-            self._notes = cycle_tag(
-                str(path), self._config.tags, self._notes
-            )
+            self._notes = cycle_tag(str(path), self._config.tags, self._notes)
             self._refresh_selected_detail()
 
     def action_edit_note(self) -> None:
@@ -393,7 +386,7 @@ class PipNavApp(App):
         self._editing_note = True
 
     @on(PipBoyInput.Submitted, "#note-input")
-    def _on_note_submitted(self, event: Input.Submitted) -> None:
+    def _on_note_submitted(self, event: PipBoyInput.Submitted) -> None:
         """Save note and hide the input."""
         path = self._selected_project_path()
         if path:
@@ -467,9 +460,6 @@ class PipNavApp(App):
                 self.query_one("#LOG").focus()
             elif tab == "SESSIONS":
                 self.query_one("#session-options").focus()
-            else:
-                # STAT has no focusable content, stay on list
-                pass
         except Exception:
             pass
 
@@ -480,16 +470,14 @@ class PipNavApp(App):
     def action_cursor_down(self) -> None:
         """Move cursor down in project list."""
         try:
-            ol = self.query_one("#project-list #project-options")
-            ol.action_cursor_down()  # type: ignore[attr-defined]
+            self.query_one("#project-list #project-options").action_cursor_down()  # type: ignore[attr-defined]
         except Exception:
             pass
 
     def action_cursor_up(self) -> None:
         """Move cursor up in project list."""
         try:
-            ol = self.query_one("#project-list #project-options")
-            ol.action_cursor_up()  # type: ignore[attr-defined]
+            self.query_one("#project-list #project-options").action_cursor_up()  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -510,7 +498,6 @@ class PipNavApp(App):
             self.query_one("#project-list", ProjectList).focus_list()
             return
 
-        # If drilled into a subfolder, go back instead of quitting
         if self._nav_stack:
             self.action_go_back()
             return
@@ -528,7 +515,7 @@ class PipNavApp(App):
             session_id=event.session_id,
         )
         if ok:
-            self.notify(f"Resuming Claude session...")
+            self.notify("Resuming Claude session...")
         else:
             self.notify(err, severity="error")
 
@@ -554,8 +541,9 @@ class PipNavApp(App):
             session = self._sessions.get(str(path))
             notes = self._notes.get(str(path), ProjectNotes())
             readme = read_readme_preview(path)
-            detail = self.query_one("#STAT", ProjectDetail)
-            detail.update_detail(entry.name, path, git_status, session, notes, readme)
+            self.query_one("#STAT", ProjectDetail).update_detail(
+                entry.name, path, git_status, session, notes, readme
+            )
 
 
 def main() -> None:

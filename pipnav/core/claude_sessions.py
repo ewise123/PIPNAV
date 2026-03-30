@@ -27,11 +27,6 @@ def _encode_project_path(path: Path) -> str:
     return str(path).replace("/", "-")
 
 
-def _decode_project_path(encoded: str) -> str:
-    """Decode an encoded project path back to a real path."""
-    # Encoded form: -home-ewise-projects-foo -> /home/ewise/projects/foo
-    return encoded.replace("-", "/", 1) if encoded.startswith("-") else encoded
-
 
 def discover_sessions_for_project(project_path: Path) -> tuple[ClaudeSession, ...]:
     """Find all Claude Code sessions for a given project path."""

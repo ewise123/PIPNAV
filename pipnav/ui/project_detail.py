@@ -12,7 +12,7 @@ from textual.widgets import Static
 from pipnav.core.git import GitStatus
 from pipnav.core.notes import ProjectNotes
 from pipnav.core.sessions import SessionInfo
-from pipnav.core.utils import read_readme_preview, time_ago
+from pipnav.core.utils import time_ago
 
 
 class ProjectDetail(Widget):

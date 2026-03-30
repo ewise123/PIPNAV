@@ -1,5 +1,6 @@
 """Launch external tools — VS Code and Claude Code via WSL/Windows Terminal."""
 
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -47,16 +48,21 @@ def launch_claude(
         return False, f"'{command}' not found on PATH"
 
     try:
-        # Build the shell command to run in the new tab
+        quoted_path = shlex.quote(str(path))
+        quoted_cmd = shlex.quote(command)
+
         if session_id:
+            quoted_sid = shlex.quote(session_id)
             shell_cmd = (
-                f"cd {path} && {command} --resume {session_id}"
-                f" --permission-mode auto"
+                f"cd {quoted_path} && {quoted_cmd}"
+                f" --resume {quoted_sid} --permission-mode auto"
             )
         elif resume:
-            shell_cmd = f"cd {path} && {command} --resume"
+            shell_cmd = f"cd {quoted_path} && {quoted_cmd} --resume"
         else:
-            shell_cmd = f"cd {path} && {command} --permission-mode auto"
+            shell_cmd = (
+                f"cd {quoted_path} && {quoted_cmd} --permission-mode auto"
+            )
 
         args = [
             wt, "-w", "0", "new-tab",

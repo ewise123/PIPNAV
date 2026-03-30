@@ -67,4 +67,4 @@ class HelpScreen(ModalScreen):
 
     def action_dismiss(self) -> None:
         """Close the help overlay."""
-        self.app.pop_screen()
+        self.dismiss()

@@ -60,7 +60,7 @@ class BootScreen(Screen):
     def _finish(self) -> None:
         """Dismiss the boot screen."""
         if self.is_current:
-            self.app.pop_screen()
+            self.dismiss()
 
     def on_key(self, event: object) -> None:
         """Skip boot animation on any key press."""

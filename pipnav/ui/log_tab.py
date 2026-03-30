@@ -8,7 +8,6 @@ from textual import work
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
-from textual.widget import Widget
 from textual.widgets import Static
 
 from pipnav.core.git import GitLogEntry, get_git_log
