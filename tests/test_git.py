@@ -74,7 +74,7 @@ def test_get_git_log_not_a_repo(tmp_path: Path) -> None:
 
 
 def test_compute_badge_no_git() -> None:
-    assert compute_badge(None, False, False) == "[? ]"
+    assert compute_badge(None, False, False) == "[?]"
 
 
 def test_compute_badge_session() -> None:

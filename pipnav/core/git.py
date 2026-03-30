@@ -139,7 +139,7 @@ def compute_badge(
 ) -> str:
     """Return all applicable status badges concatenated."""
     if git_status is None:
-        return "[? ]"
+        return "[?]"
 
     badges: list[str] = []
     if has_session:
