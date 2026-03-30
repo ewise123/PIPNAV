@@ -1,0 +1,222 @@
+/* PipNav — Pip-Boy 3000 Theme
+ * Amber (#FFB000) on black (#0A0A0A) throughout.
+ * Box-drawing borders, monospace, no other text colors except:
+ *   Dimmed/secondary: #996600
+ *   Error: #FF4444
+ *   Success/clean: #00FF41
+ */
+
+/* ── Global ────────────────────────────────────────────────── */
+
+Screen {
+    background: #0A0A0A;
+    color: #FFB000;
+    layers: default overlay;
+}
+
+* {
+    scrollbar-background: #0A0A0A;
+    scrollbar-color: #996600;
+    scrollbar-color-hover: #FFB000;
+    scrollbar-color-active: #FFB000;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+
+#header {
+    height: auto;
+    max-height: 9;
+    background: #0A0A0A;
+    color: #FFB000;
+    padding: 0 1;
+    border-bottom: solid #996600;
+}
+
+#logo {
+    color: #FFB000;
+    text-style: bold;
+}
+
+#tab-bar {
+    color: #FFB000;
+    dock: right;
+    width: auto;
+    padding: 0 2;
+}
+
+/* ── Main Layout ───────────────────────────────────────────── */
+
+#main-layout {
+    height: 1fr;
+}
+
+/* ── Project List (left panel) ─────────────────────────────── */
+
+#project-list {
+    width: 34;
+    border-right: solid #996600;
+    background: #0A0A0A;
+}
+
+#project-options {
+    background: #0A0A0A;
+    color: #FFB000;
+    border: none;
+}
+
+#project-options:focus {
+    border: none;
+}
+
+#project-options > .option-list--option {
+    background: #0A0A0A;
+    color: #FFB000;
+    padding: 0 1;
+}
+
+#project-options > .option-list--option-highlighted {
+    background: #FFB000;
+    color: #0A0A0A;
+    text-style: bold;
+}
+
+#project-options:focus > .option-list--option-highlighted {
+    background: #FFB000;
+    color: #0A0A0A;
+    text-style: bold;
+}
+
+/* ── Tab Content (right panel) ─────────────────────────────── */
+
+#tab-content {
+    width: 1fr;
+    background: #0A0A0A;
+}
+
+/* STAT tab — project detail */
+#STAT {
+    padding: 1 2;
+    background: #0A0A0A;
+    color: #FFB000;
+}
+
+#detail-content {
+    color: #FFB000;
+}
+
+/* FILES tab */
+#FILES {
+    padding: 0;
+    background: #0A0A0A;
+}
+
+#files-placeholder {
+    color: #996600;
+    padding: 1 2;
+}
+
+#file-tree {
+    background: #0A0A0A;
+    color: #FFB000;
+}
+
+DirectoryTree {
+    background: #0A0A0A;
+    color: #FFB000;
+}
+
+DirectoryTree > .directory-tree--folder {
+    color: #FFB000;
+    text-style: bold;
+}
+
+DirectoryTree > .directory-tree--file {
+    color: #996600;
+}
+
+DirectoryTree:focus > .directory-tree--cursor {
+    background: #FFB000;
+    color: #0A0A0A;
+}
+
+/* LOG tab */
+#LOG {
+    padding: 1 2;
+    background: #0A0A0A;
+    color: #FFB000;
+    overflow-y: auto;
+}
+
+#log-content {
+    color: #FFB000;
+}
+
+/* ── Search Bar ────────────────────────────────────────────── */
+
+#search-bar {
+    dock: top;
+    height: 3;
+    background: #0A0A0A;
+    border-bottom: solid #996600;
+    padding: 0 1;
+}
+
+#search-input {
+    background: #0A0A0A;
+    color: #FFB000;
+    border: solid #996600;
+}
+
+#search-input:focus {
+    border: solid #FFB000;
+}
+
+/* ── Note Input ────────────────────────────────────────────── */
+
+#note-input {
+    dock: bottom;
+    height: 3;
+    background: #0A0A0A;
+    color: #FFB000;
+    border: solid #996600;
+    margin: 0 1;
+}
+
+#note-input:focus {
+    border: solid #FFB000;
+}
+
+/* ── CRT Overlay ───────────────────────────────────────────── */
+
+#crt-overlay {
+    layer: overlay;
+    dock: top;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+
+Footer {
+    background: #0A0A0A;
+    color: #996600;
+    border-top: solid #996600;
+}
+
+Footer > .footer--key {
+    background: #996600;
+    color: #0A0A0A;
+}
+
+Footer > .footer--description {
+    color: #996600;
+}
+
+/* ── Notifications ─────────────────────────────────────────── */
+
+Toast {
+    background: #0A0A0A;
+    color: #FFB000;
+    border: solid #FFB000;
+}
