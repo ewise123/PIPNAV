@@ -30,7 +30,14 @@ class ProjectList(Widget):
 
     @dataclass
     class Selected(Message):
-        """Fired when a project is selected."""
+        """Fired when a project highlight changes."""
+
+        path: Path
+        name: str
+
+    @dataclass
+    class Activated(Message):
+        """Fired when Enter is pressed on a project."""
 
         path: Path
         name: str
@@ -61,6 +68,13 @@ class ProjectList(Widget):
         """Fire Selected message when highlight changes."""
         if event.option_index is not None:
             self._fire_selected(event.option_index)
+
+    @on(OptionList.OptionSelected, "#project-options")
+    def _on_selected(self, event: OptionList.OptionSelected) -> None:
+        """Fire Activated message when Enter is pressed."""
+        if event.option_index is not None and 0 <= event.option_index < len(self._entries):
+            entry = self._entries[event.option_index]
+            self.post_message(self.Activated(path=entry.path, name=entry.name))
 
     def _fire_selected(self, index: int) -> None:
         """Post a Selected message for the given index."""

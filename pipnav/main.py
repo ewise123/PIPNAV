@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual import on
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
-from textual import work
 
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
@@ -18,7 +17,6 @@ from pipnav.core.notes import (
     ProjectNotes,
     cycle_tag,
     load_notes,
-    save_notes,
     set_note,
 )
 from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
@@ -44,13 +42,13 @@ class PipNavApp(App):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
-        ("escape", "quit_or_close", "Quit"),
+        ("escape", "quit_or_close", "Back/Quit"),
         ("j", "cursor_down", "Down"),
         ("k", "cursor_up", "Up"),
-        ("enter", "open_vscode", "VS Code"),
+        ("backspace", "go_back", "Back"),
+        ("v", "open_vscode", "VS Code"),
         ("c", "open_claude", "Claude"),
         ("r", "resume_claude", "Resume"),
-        ("f", "open_folder", "Folder"),
         ("slash", "start_search", "Search"),
         ("tab", "next_tab", "Tab"),
         ("1", "show_tab('STAT')", "STAT"),
@@ -73,6 +71,9 @@ class PipNavApp(App):
         self._notes: dict[str, ProjectNotes] = {}
         self._current_tab: str = "STAT"
         self._editing_note: bool = False
+        # Navigation stack for drilling into folders
+        self._nav_stack: list[tuple[str, ...]] = []
+        self._current_roots: tuple[str, ...] = ()
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -93,6 +94,7 @@ class PipNavApp(App):
         self._config = load_config()
         self._sessions = load_sessions()
         self._notes = load_notes()
+        self._current_roots = self._config.project_roots
 
         # Hide search bar and note input initially
         self.query_one("#search-bar", SearchBar).display = False
@@ -115,7 +117,7 @@ class PipNavApp(App):
     @work(exclusive=True, thread=True)
     def _load_projects(self) -> None:
         """Discover projects and fetch git status in background."""
-        projects = discover_projects(self._config.project_roots)
+        projects = discover_projects(self._current_roots)
         statuses: dict[str, GitStatus | None] = {}
 
         for project in projects:
@@ -133,7 +135,7 @@ class PipNavApp(App):
     ) -> None:
         """Update the UI with discovered projects."""
         self._all_projects = projects
-        self._git_statuses = statuses
+        self._git_statuses.update(statuses)
         self._rebuild_list(projects)
 
     def _rebuild_list(self, projects: tuple[ProjectInfo, ...]) -> None:
@@ -149,6 +151,57 @@ class PipNavApp(App):
             )
 
         self.query_one("#project-list", ProjectList).set_projects(tuple(entries))
+
+    # --- Directory drill-down ---
+
+    @on(ProjectList.Activated)
+    def _on_project_activated(self, event: ProjectList.Activated) -> None:
+        """Drill into folder when Enter is pressed."""
+        path = event.path
+        self._drill_into(path)
+
+    def _drill_into(self, path: Path) -> None:
+        """Drill into a folder's subdirectories."""
+        if not path:
+            return
+
+        # Check if this folder has subdirectories worth drilling into
+        try:
+            subdirs = [
+                d for d in sorted(path.iterdir(), key=lambda p: p.name.lower())
+                if d.is_dir() and not d.name.startswith(".")
+            ]
+        except OSError:
+            return
+
+        if not subdirs:
+            self.notify("No subdirectories to open", severity="warning")
+            return
+
+        # Push current roots onto the stack and drill into this folder
+        self._nav_stack.append(self._current_roots)
+        self._current_roots = (str(path),)
+        self._load_projects()
+        self._update_title()
+
+    def action_go_back(self) -> None:
+        """Go back up to the parent directory level."""
+        if not self._nav_stack:
+            self.notify("Already at top level")
+            return
+
+        self._current_roots = self._nav_stack.pop()
+        self._load_projects()
+        self._update_title()
+
+    def _update_title(self) -> None:
+        """Update the app subtitle to show current location."""
+        if self._nav_stack:
+            # Show the current folder name we're inside
+            root = Path(self._current_roots[0])
+            self.sub_title = f"/{root.name}"
+        else:
+            self.sub_title = ""
 
     # --- Project selection ---
 
@@ -211,10 +264,8 @@ class PipNavApp(App):
             ok, err = launch_vscode(path, self._config.vscode_command)
             if not ok:
                 self.notify(err, severity="error")
-
-    def action_open_folder(self) -> None:
-        """Open selected project folder in VS Code."""
-        self.action_open_vscode()
+            else:
+                self.notify(f"Opening {path.name} in VS Code...")
 
     def action_open_claude(self) -> None:
         """Launch Claude Code on selected project."""
@@ -223,6 +274,7 @@ class PipNavApp(App):
             ok, err = launch_claude(path, self._config.claude_command)
             if ok:
                 self._sessions = record_session(path, resumable=True)
+                self.notify(f"Claude Code launched for {path.name}")
             else:
                 self.notify(err, severity="error")
 
@@ -235,6 +287,7 @@ class PipNavApp(App):
             )
             if ok:
                 self._sessions = record_session(path, resumable=True)
+                self.notify(f"Resuming Claude session for {path.name}")
             else:
                 self.notify(err, severity="error")
 
@@ -338,7 +391,7 @@ class PipNavApp(App):
     # --- Quit handling ---
 
     def action_quit_or_close(self) -> None:
-        """Close search/note if open, otherwise quit."""
+        """Close search/note if open, go back if drilled in, otherwise quit."""
         search_bar = self.query_one("#search-bar", SearchBar)
         if search_bar.is_searching:
             search_bar.is_searching = False
@@ -350,6 +403,11 @@ class PipNavApp(App):
             note_input.display = False
             self._editing_note = False
             self.query_one("#project-list", ProjectList).focus_list()
+            return
+
+        # If drilled into a subfolder, go back instead of quitting
+        if self._nav_stack:
+            self.action_go_back()
             return
 
         self.exit()

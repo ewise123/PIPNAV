@@ -10,14 +10,16 @@ HELP_TEXT = """\
 
 [bold]Navigation[/]
   ↑/↓ or j/k      Navigate project list
+  Enter            Drill into folder
+  Backspace        Go back to parent
+  Esc              Go back / close / quit
   Tab              Cycle tabs (STAT / FILES / LOG)
   1 / 2 / 3       Jump to STAT / FILES / LOG tab
 
 [bold]Actions[/]
-  Enter            Open project in VS Code
+  v                Open project in VS Code
   c                Launch Claude Code (auto-mode)
   r                Resume Claude Code session
-  f                Open project folder in VS Code
 
 [bold]Project[/]
   t                Cycle tag on selected project
