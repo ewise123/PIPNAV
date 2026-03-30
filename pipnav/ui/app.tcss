@@ -219,11 +219,12 @@ DirectoryTree:focus > .directory-tree--cursor {
 
 #note-input {
     dock: bottom;
-    height: 3;
+    height: auto;
+    max-height: 5;
     background: #0A0A0A;
     color: #FFB000;
     border: solid #996600;
-    margin: 0 1;
+    margin: 0 1 1 1;
 }
 
 #note-input:focus {
