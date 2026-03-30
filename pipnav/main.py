@@ -13,28 +13,41 @@ from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
 
 PIPBOY_THEME = Theme(
     name="pipboy",
-    primary="#55FF88",
+    primary="#8EFE55",
     secondary="#1A8033",
-    accent="#55FF88",
-    foreground="#55FF88",
+    accent="#8EFE55",
+    foreground="#8EFE55",
     background="#0D2B0D",
     surface="#0D2B0D",
     panel="#0D2B0D",
-    warning="#55FF88",
+    warning="#8EFE55",
     error="#FF4444",
-    success="#55FF88",
+    success="#8EFE55",
     dark=True,
     variables={
-        "block-cursor-background": "#55FF88",
+        "block-cursor-background": "#8EFE55",
         "block-cursor-foreground": "#0D2B0D",
         "block-cursor-blurred-background": "#0D2B0D",
-        "block-cursor-blurred-foreground": "#55FF88",
+        "block-cursor-blurred-foreground": "#8EFE55",
         "block-hover-background": "transparent",
         "surface-active": "#0D2B0D",
-        "input-cursor-background": "#55FF88",
+        "input-cursor-background": "#8EFE55",
         "input-cursor-foreground": "#0D2B0D",
     },
 )
+
+class PipBoyInput(Input):
+    """Input with no background tint on focus."""
+
+    DEFAULT_CSS = """
+    PipBoyInput {
+        background-tint: initial;
+    }
+    PipBoyInput:focus {
+        background-tint: initial;
+    }
+    """
+
 
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
@@ -119,7 +132,7 @@ class PipNavApp(App):
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
                 yield SessionsTab(id="SESSIONS")
-        yield Input(placeholder="Enter note (max 200 chars)...", id="note-input")
+        yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -132,7 +145,7 @@ class PipNavApp(App):
 
         # Hide search bar and note input initially
         self.query_one("#search-bar", SearchBar).display = False
-        self.query_one("#note-input", Input).display = False
+        self.query_one("#note-input", PipBoyInput).display = False
 
         # CRT flicker effect
         if self._config.crt_effects:
@@ -372,14 +385,14 @@ class PipNavApp(App):
         if not path:
             return
 
-        note_input = self.query_one("#note-input", Input)
+        note_input = self.query_one("#note-input", PipBoyInput)
         current_notes = self._notes.get(str(path), ProjectNotes())
         note_input.value = current_notes.note
         note_input.display = True
         note_input.focus()
         self._editing_note = True
 
-    @on(Input.Submitted, "#note-input")
+    @on(PipBoyInput.Submitted, "#note-input")
     def _on_note_submitted(self, event: Input.Submitted) -> None:
         """Save note and hide the input."""
         path = self._selected_project_path()
@@ -387,7 +400,7 @@ class PipNavApp(App):
             self._notes = set_note(str(path), event.value, self._notes)
             self._refresh_selected_detail()
 
-        note_input = self.query_one("#note-input", Input)
+        note_input = self.query_one("#note-input", PipBoyInput)
         note_input.display = False
         self._editing_note = False
         self.query_one("#project-list", ProjectList).focus_list()
@@ -491,7 +504,7 @@ class PipNavApp(App):
             return
 
         if self._editing_note:
-            note_input = self.query_one("#note-input", Input)
+            note_input = self.query_one("#note-input", PipBoyInput)
             note_input.display = False
             self._editing_note = False
             self.query_one("#project-list", ProjectList).focus_list()

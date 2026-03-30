@@ -15,6 +15,15 @@ from textual.widgets import Input
 class SearchInput(Input):
     """Input that emits a dismiss message on Escape."""
 
+    DEFAULT_CSS = """
+    SearchInput {
+        background-tint: initial;
+    }
+    SearchInput:focus {
+        background-tint: initial;
+    }
+    """
+
     class Dismissed(Message):
         """Fired when Escape is pressed."""
 

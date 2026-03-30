@@ -1,9 +1,9 @@
 /* PipNav — Pip-Boy 3000 Fallout 4 Green Theme
  *
- * Primary:    #55FF88  (Pip-Boy green, slightly faded)
+ * Primary:    #8EFE55  (Pip-Boy green, slightly faded)
  * Dimmed:     #1A8033  (dark green for secondary text)
  * Background: #0D2B0D  (very dark green)
- * Highlight:  #55FF88 on #0D2B0D reversed
+ * Highlight:  #8EFE55 on #0D2B0D reversed
  * Error:      #FF4444
  */
 
@@ -11,15 +11,15 @@
 
 Screen {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     layers: default overlay;
 }
 
 * {
     scrollbar-background: #0D2B0D;
     scrollbar-color: #1A8033;
-    scrollbar-color-hover: #55FF88;
-    scrollbar-color-active: #55FF88;
+    scrollbar-color-hover: #8EFE55;
+    scrollbar-color-active: #8EFE55;
 }
 
 /* Remove focus borders */
@@ -50,12 +50,6 @@ DirectoryTree:focus {
     background: #0D2B0D;
 }
 
-/* ── Vignette ──────────────────────────────────────────────── */
-/* Dark border around the entire screen simulates CRT edge falloff */
-
-Screen {
-    border: wide #021002;
-}
 
 /* ── Header ────────────────────────────────────────────────── */
 
@@ -63,18 +57,18 @@ Screen {
     height: auto;
     max-height: 9;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     padding: 0 1;
     border-bottom: solid #1A8033;
 }
 
 #logo {
-    color: #55FF88;
+    color: #8EFE55;
     text-style: bold;
 }
 
 #tab-bar {
-    color: #55FF88;
+    color: #8EFE55;
     dock: right;
     width: auto;
     padding: 0 2;
@@ -96,7 +90,7 @@ Screen {
 
 #project-options {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     border: none;
     padding: 0;
 }
@@ -111,18 +105,18 @@ Screen {
 
 #project-options > .option-list--option {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     padding: 0 1;
 }
 
 #project-options > .option-list--option-highlighted {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
     text-style: bold;
 }
 
 #project-options:focus > .option-list--option-highlighted {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
     text-style: bold;
 }
@@ -140,11 +134,11 @@ Screen {
     padding: 1 2;
     height: 1fr;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 #detail-content {
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 /* FILES tab */
@@ -162,16 +156,16 @@ Screen {
 #file-tree {
     height: 1fr;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 DirectoryTree {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 DirectoryTree > .directory-tree--folder {
-    color: #55FF88;
+    color: #8EFE55;
     text-style: bold;
 }
 
@@ -180,12 +174,12 @@ DirectoryTree > .directory-tree--file {
 }
 
 DirectoryTree > .directory-tree--cursor {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
 }
 
 DirectoryTree:focus > .directory-tree--cursor {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
 }
 
@@ -194,7 +188,7 @@ DirectoryTree:focus > .directory-tree--cursor {
     padding: 1 2;
     height: 1fr;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 #sessions-placeholder {
@@ -204,25 +198,25 @@ DirectoryTree:focus > .directory-tree--cursor {
 
 #session-options {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     border: none;
     height: 1fr;
 }
 
 #session-options > .option-list--option {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     padding: 0 1;
 }
 
 #session-options > .option-list--option-highlighted {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
     text-style: bold;
 }
 
 #session-options:focus > .option-list--option-highlighted {
-    background: #55FF88;
+    background: #8EFE55;
     color: #0D2B0D;
     text-style: bold;
 }
@@ -232,12 +226,12 @@ DirectoryTree:focus > .directory-tree--cursor {
     padding: 1 2;
     height: 1fr;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     overflow-y: auto;
 }
 
 #log-content {
-    color: #55FF88;
+    color: #8EFE55;
 }
 
 /* ── Search Bar ────────────────────────────────────────────── */
@@ -252,13 +246,16 @@ DirectoryTree:focus > .directory-tree--cursor {
 
 #search-input {
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     border: solid #1A8033;
     margin: 0 0 1 0;
+    background-tint: initial;
 }
 
 #search-input:focus {
-    border: solid #55FF88;
+    border: solid #8EFE55;
+    background: #0D2B0D;
+    background-tint: initial;
 }
 
 /* ── Note Input ────────────────────────────────────────────── */
@@ -268,26 +265,32 @@ DirectoryTree:focus > .directory-tree--cursor {
     height: auto;
     max-height: 5;
     background: #0D2B0D;
-    color: #55FF88;
+    color: #8EFE55;
     border: solid #1A8033;
     margin: 0 1 1 1;
 }
 
+#note-input {
+    background-tint: initial;
+}
+
 #note-input:focus {
-    border: solid #55FF88;
+    border: solid #8EFE55;
+    background: #0D2B0D;
+    background-tint: initial;
 }
 
 /* ── CRT Flicker Effect ────────────────────────────────────── */
 
 /* Bright state — phosphor glow peak */
 Screen.crt-on {
-    color: #66FFAA;
+    color: #A4FE77;
     background: #103510;
 }
 
 /* Dim state — phosphor decay, visible brightness drop */
 Screen.crt-dim {
-    color: #33BB55;
+    color: #5A9E33;
     background: #081A08;
 }
 
@@ -300,12 +303,12 @@ Screen.crt-dim #project-options > .option-list--option,
 Screen.crt-dim #session-options > .option-list--option,
 Screen.crt-dim DirectoryTree,
 Screen.crt-dim Footer {
-    color: #33BB55;
+    color: #5A9E33;
 }
 
 Screen.crt-dim #project-options > .option-list--option-highlighted,
 Screen.crt-dim #session-options > .option-list--option-highlighted {
-    background: #33BB55;
+    background: #5A9E33;
 }
 
 /* ── Footer ────────────────────────────────────────────────── */
@@ -329,6 +332,6 @@ Footer > .footer--description {
 
 Toast {
     background: #0D2B0D;
-    color: #55FF88;
-    border: solid #55FF88;
+    color: #8EFE55;
+    border: solid #8EFE55;
 }
