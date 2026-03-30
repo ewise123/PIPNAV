@@ -33,6 +33,7 @@ from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.sessions_tab import SessionsTab
 
 
 class PipNavApp(App):
@@ -54,6 +55,7 @@ class PipNavApp(App):
         ("1", "show_tab('STAT')", "STAT"),
         ("2", "show_tab('FILES')", "FILES"),
         ("3", "show_tab('LOG')", "LOG"),
+        ("4", "show_tab('SESSIONS')", "SESSIONS"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_note", "Note"),
         ("f5", "refresh", "Refresh"),
@@ -84,6 +86,7 @@ class PipNavApp(App):
                 yield ProjectDetail(id="STAT")
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
+                yield SessionsTab(id="SESSIONS")
         yield Input(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield CRTOverlay(id="crt-overlay")
         yield Footer()
@@ -228,6 +231,10 @@ class PipNavApp(App):
         log_tab = self.query_one("#LOG", LogTab)
         log_tab.project_path = path
 
+        # Update SESSIONS tab
+        sessions_tab = self.query_one("#SESSIONS", SessionsTab)
+        sessions_tab.project_path = path
+
     def _selected_project_path(self) -> Path | None:
         """Return the path of the currently selected project."""
         entry = self.query_one("#project-list", ProjectList).selected_entry
@@ -244,7 +251,7 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG")
+        tabs = ("STAT", "FILES", "LOG", "SESSIONS")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
@@ -418,6 +425,21 @@ class PipNavApp(App):
             return
 
         self.exit()
+
+    # --- Session resume ---
+
+    @on(SessionsTab.SessionActivated)
+    def _on_session_activated(self, event: SessionsTab.SessionActivated) -> None:
+        """Resume a specific Claude Code session in a new terminal tab."""
+        ok, err = launch_claude(
+            event.project_path,
+            self._config.claude_command,
+            session_id=event.session_id,
+        )
+        if ok:
+            self.notify(f"Resuming Claude session...")
+        else:
+            self.notify(err, severity="error")
 
     # --- File tree integration ---
 

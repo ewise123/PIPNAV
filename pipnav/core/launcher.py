@@ -31,7 +31,10 @@ def launch_vscode(
 
 
 def launch_claude(
-    path: Path, command: str = "claude", resume: bool = False
+    path: Path,
+    command: str = "claude",
+    resume: bool = False,
+    session_id: str | None = None,
 ) -> tuple[bool, str]:
     """Launch Claude Code in a new Windows Terminal tab. Returns (success, error_message)."""
     logger = get_logger()
@@ -45,7 +48,12 @@ def launch_claude(
 
     try:
         # Build the shell command to run in the new tab
-        if resume:
+        if session_id:
+            shell_cmd = (
+                f"cd {path} && {command} --resume {session_id}"
+                f" --permission-mode auto"
+            )
+        elif resume:
             shell_cmd = f"cd {path} && {command} --resume"
         else:
             shell_cmd = f"cd {path} && {command} --permission-mode auto"

@@ -13,8 +13,8 @@ HELP_TEXT = """\
   Enter            Drill into folder
   Backspace        Go back to parent
   Esc              Go back / close / quit
-  Tab              Cycle tabs (STAT / FILES / LOG)
-  1 / 2 / 3       Jump to STAT / FILES / LOG tab
+  Tab              Cycle tabs (STAT / FILES / LOG / SESSIONS)
+  1 / 2 / 3 / 4   Jump to STAT / FILES / LOG / SESSIONS tab
 
 [bold]Actions[/]
   v                Open project in VS Code
