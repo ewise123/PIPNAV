@@ -75,11 +75,28 @@ class PipNavApp(App):
     CSS_PATH = "ui/app.tcss"
     TITLE = "PipNav"
 
-    # Only non-character keys in BINDINGS — single-char keys handled in on_key
     BINDINGS = [
+        ("q", "quit", "Quit"),
         ("escape", "quit_or_close", "Back/Quit"),
+        ("j", "cursor_down", "Down"),
+        ("k", "cursor_up", "Up"),
+        ("l", "focus_right", "Right"),
+        ("h", "focus_left", "Left"),
         ("backspace", "go_back", "Back"),
+        ("v", "open_vscode", "VS Code"),
+        ("c", "open_claude", "Claude"),
+        ("r", "resume_claude", "Resume"),
+        ("slash", "start_search", "Search"),
+        ("1", "show_tab('STAT')", "STAT"),
+        ("2", "show_tab('FILES')", "FILES"),
+        ("3", "show_tab('LOG')", "LOG"),
+        ("4", "show_tab('SESSIONS')", "SESSIONS"),
+        ("t", "cycle_tag", "Tag"),
+        ("n", "edit_note", "Note"),
         ("f5", "refresh", "Refresh"),
+        ("grave_accent", "toggle_crt", "CRT"),
+        ("tilde", "toggle_crt", "CRT"),
+        ("question_mark", "show_help", "Help"),
     ]
 
     def __init__(self) -> None:
@@ -130,51 +147,26 @@ class PipNavApp(App):
         self._load_projects()
 
     # --- Key handling ---
-    # Single-char bindings go here so they're suppressed when an Input has focus.
 
-    def _input_has_focus(self) -> bool:
-        """Return True if any Input widget currently has focus."""
-        focused = self.focused
-        return isinstance(focused, Input)
+    # Actions that should be blocked when typing in an Input
+    _CHAR_ACTIONS = frozenset({
+        "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
+        "open_vscode", "open_claude", "resume_claude", "start_search",
+        "cycle_tag", "edit_note", "toggle_crt", "show_help",
+    })
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Block single-char bindings when an Input has focus."""
+        if isinstance(self.focused, Input) and action in self._CHAR_ACTIONS:
+            return False
+        return True
 
     def on_key(self, event: Key) -> None:
-        """Handle all single-character keybindings, suppressing them during text input."""
+        """Intercept Tab before Textual's focus system consumes it."""
         if event.key == "tab":
             event.stop()
             event.prevent_default()
             self.action_next_tab()
-            return
-
-        # Let Input widgets handle their own keys
-        if self._input_has_focus():
-            return
-
-        key_actions: dict[str, str] = {
-            "q": "quit",
-            "j": "cursor_down",
-            "k": "cursor_up",
-            "l": "focus_right",
-            "h": "focus_left",
-            "v": "open_vscode",
-            "c": "open_claude",
-            "r": "resume_claude",
-            "slash": "start_search",
-            "1": "show_tab('STAT')",
-            "2": "show_tab('FILES')",
-            "3": "show_tab('LOG')",
-            "4": "show_tab('SESSIONS')",
-            "t": "cycle_tag",
-            "n": "edit_note",
-            "grave_accent": "toggle_crt",
-            "tilde": "toggle_crt",
-            "question_mark": "show_help",
-        }
-
-        action = key_actions.get(event.key)
-        if action:
-            event.stop()
-            event.prevent_default()
-            self.run_action(action)
 
     # --- Project loading ---
 
