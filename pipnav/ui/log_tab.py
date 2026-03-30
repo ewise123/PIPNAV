@@ -4,17 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from textual import work
 from textual.app import ComposeResult
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
-from textual import work
 
 from pipnav.core.git import GitLogEntry, get_git_log
 from pipnav.core.utils import time_ago
 
 
-class LogTab(Widget):
+class LogTab(VerticalScroll):
     """Git log display for the selected project."""
 
     project_path: reactive[Path | None] = reactive(None)

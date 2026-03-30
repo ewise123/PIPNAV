@@ -90,12 +90,14 @@ Screen {
 
 #tab-content {
     width: 1fr;
+    height: 1fr;
     background: #0A0A0A;
 }
 
 /* STAT tab — project detail */
 #STAT {
     padding: 1 2;
+    height: 1fr;
     background: #0A0A0A;
     color: #FFB000;
 }
@@ -107,6 +109,7 @@ Screen {
 /* FILES tab */
 #FILES {
     padding: 0;
+    height: 1fr;
     background: #0A0A0A;
 }
 
@@ -116,6 +119,7 @@ Screen {
 }
 
 #file-tree {
+    height: 1fr;
     background: #0A0A0A;
     color: #FFB000;
 }
@@ -142,6 +146,7 @@ DirectoryTree:focus > .directory-tree--cursor {
 /* LOG tab */
 #LOG {
     padding: 1 2;
+    height: 1fr;
     background: #0A0A0A;
     color: #FFB000;
     overflow-y: auto;
@@ -155,9 +160,9 @@ DirectoryTree:focus > .directory-tree--cursor {
 
 #search-bar {
     dock: top;
-    height: 3;
+    height: auto;
+    max-height: 5;
     background: #0A0A0A;
-    border-bottom: solid #996600;
     padding: 0 1;
 }
 
@@ -165,6 +170,7 @@ DirectoryTree:focus > .directory-tree--cursor {
     background: #0A0A0A;
     color: #FFB000;
     border: solid #996600;
+    margin: 0 0 1 0;
 }
 
 #search-input:focus {

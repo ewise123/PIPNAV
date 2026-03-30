@@ -7,6 +7,7 @@ from pathlib import Path
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
+from textual.events import Key
 from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
 
 from pipnav.core.config import PipNavConfig, load_config, update_config
@@ -50,7 +51,6 @@ class PipNavApp(App):
         ("c", "open_claude", "Claude"),
         ("r", "resume_claude", "Resume"),
         ("slash", "start_search", "Search"),
-        ("tab", "next_tab", "Tab"),
         ("1", "show_tab('STAT')", "STAT"),
         ("2", "show_tab('FILES')", "FILES"),
         ("3", "show_tab('LOG')", "LOG"),
@@ -234,6 +234,13 @@ class PipNavApp(App):
         return entry.path if entry else None
 
     # --- Tab switching ---
+
+    def on_key(self, event: Key) -> None:
+        """Intercept Tab before Textual's focus system consumes it."""
+        if event.key == "tab":
+            event.stop()
+            event.prevent_default()
+            self.action_next_tab()
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
