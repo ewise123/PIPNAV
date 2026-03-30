@@ -47,6 +47,8 @@ class PipNavApp(App):
         ("escape", "quit_or_close", "Back/Quit"),
         ("j", "cursor_down", "Down"),
         ("k", "cursor_up", "Up"),
+        ("l", "focus_right", "Focus Right"),
+        ("h", "focus_left", "Focus Left"),
         ("backspace", "go_back", "Back"),
         ("v", "open_vscode", "VS Code"),
         ("c", "open_claude", "Claude"),
@@ -384,7 +386,27 @@ class PipNavApp(App):
         self._load_projects()
         self.notify("Refreshing projects...")
 
-    # --- Cursor pass-through ---
+    # --- Focus and cursor ---
+
+    def action_focus_right(self) -> None:
+        """Move focus to the active tab's content panel."""
+        tab = self._current_tab
+        try:
+            if tab == "FILES":
+                self.query_one("#file-tree").focus()
+            elif tab == "LOG":
+                self.query_one("#LOG").focus()
+            elif tab == "SESSIONS":
+                self.query_one("#session-options").focus()
+            else:
+                # STAT has no focusable content, stay on list
+                pass
+        except Exception:
+            pass
+
+    def action_focus_left(self) -> None:
+        """Move focus back to the project list."""
+        self.query_one("#project-list", ProjectList).focus_list()
 
     def action_cursor_down(self) -> None:
         """Move cursor down in project list."""

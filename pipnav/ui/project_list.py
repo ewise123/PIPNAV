@@ -7,8 +7,8 @@ from pathlib import Path
 
 from textual import on
 from textual.app import ComposeResult
+from textual.events import Key
 from textual.message import Message
-from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
@@ -21,6 +21,24 @@ class ProjectEntry:
     name: str
     path: Path
     badge: str
+
+
+class ProjectOptionList(OptionList):
+    """OptionList where click highlights only; Enter fires OptionSelected."""
+
+    _enter_pressed: bool = False
+
+    def on_key(self, event: Key) -> None:
+        """Track that Enter was pressed so action_select knows to fire."""
+        if event.key == "enter":
+            self._enter_pressed = True
+
+    def action_select(self) -> None:
+        """Only fire OptionSelected when triggered by Enter, not click."""
+        if self._enter_pressed:
+            self._enter_pressed = False
+            super().action_select()
+        # On click: do nothing extra — the highlight already changed via _on_click
 
 
 class ProjectList(Widget):
@@ -47,12 +65,12 @@ class ProjectList(Widget):
         self._entries: tuple[ProjectEntry, ...] = ()
 
     def compose(self) -> ComposeResult:
-        yield OptionList(id="project-options")
+        yield ProjectOptionList(id="project-options")
 
     def set_projects(self, entries: tuple[ProjectEntry, ...]) -> None:
         """Update the project list with new entries."""
         self._entries = entries
-        option_list = self.query_one("#project-options", OptionList)
+        option_list = self.query_one("#project-options", ProjectOptionList)
         option_list.clear_options()
         for entry in entries:
             label = f"  {entry.name:<26} {entry.badge}"
@@ -85,7 +103,7 @@ class ProjectList(Widget):
     def focus_list(self) -> None:
         """Focus the inner option list."""
         try:
-            self.query_one("#project-options", OptionList).focus()
+            self.query_one("#project-options", ProjectOptionList).focus()
         except Exception:
             pass
 
@@ -93,7 +111,7 @@ class ProjectList(Widget):
     def highlighted_index(self) -> int | None:
         """Return the currently highlighted index."""
         try:
-            return self.query_one("#project-options", OptionList).highlighted
+            return self.query_one("#project-options", ProjectOptionList).highlighted
         except Exception:
             return None
 

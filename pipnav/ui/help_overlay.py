@@ -10,7 +10,9 @@ HELP_TEXT = """\
 
 [bold]Navigation[/]
   ↑/↓ or j/k      Navigate project list
-  Enter            Drill into folder
+  l (right)        Focus right panel (files/log/sessions)
+  h (left)         Focus back to project list
+  Enter            Drill into folder / select session
   Backspace        Go back to parent
   Esc              Go back / close / quit
   Tab              Cycle tabs (STAT / FILES / LOG / SESSIONS)
