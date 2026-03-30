@@ -49,9 +49,9 @@ class HelpScreen(ModalScreen):
         width: 56;
         height: auto;
         max-height: 80%;
-        border: solid #FFB000;
-        background: #0A0A0A;
-        color: #FFB000;
+        border: solid #55FF88;
+        background: #0D2B0D;
+        color: #55FF88;
         padding: 1 2;
     }
     """

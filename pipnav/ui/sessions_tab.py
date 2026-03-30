@@ -13,6 +13,19 @@ from textual.reactive import reactive
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
+
+class SessionOptionList(OptionList):
+    """OptionList with no background tint on focus."""
+
+    DEFAULT_CSS = """
+    SessionOptionList {
+        background-tint: initial;
+    }
+    SessionOptionList:focus {
+        background-tint: initial;
+    }
+    """
+
 from pipnav.core.claude_sessions import ClaudeSession, discover_sessions_for_project
 from pipnav.core.utils import time_ago
 
@@ -37,11 +50,11 @@ class SessionsTab(VerticalScroll):
         yield Static(
             "Select a project to view Claude sessions", id="sessions-placeholder"
         )
-        yield OptionList(id="session-options")
+        yield SessionOptionList(id="session-options")
 
     def on_mount(self) -> None:
         """Hide the option list until sessions are loaded."""
-        self.query_one("#session-options", OptionList).display = False
+        self.query_one("#session-options", SessionOptionList).display = False
 
     def watch_project_path(self, path: Path | None) -> None:
         """Load sessions when project changes."""
@@ -60,7 +73,7 @@ class SessionsTab(VerticalScroll):
     def _update_sessions(self, sessions: tuple[ClaudeSession, ...]) -> None:
         """Update the session list."""
         self._sessions = sessions
-        option_list = self.query_one("#session-options", OptionList)
+        option_list = self.query_one("#session-options", SessionOptionList)
         option_list.clear_options()
 
         if not sessions:
@@ -83,7 +96,7 @@ class SessionsTab(VerticalScroll):
         placeholder = self.query_one("#sessions-placeholder", Static)
         placeholder.update(text)
         placeholder.display = True
-        self.query_one("#session-options", OptionList).display = False
+        self.query_one("#session-options", SessionOptionList).display = False
 
     @on(OptionList.OptionSelected, "#session-options")
     def _on_session_selected(self, event: OptionList.OptionSelected) -> None:

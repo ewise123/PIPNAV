@@ -26,6 +26,15 @@ class ProjectEntry:
 class ProjectOptionList(OptionList):
     """OptionList where click highlights only; Enter fires OptionSelected."""
 
+    DEFAULT_CSS = """
+    ProjectOptionList {
+        background-tint: initial;
+    }
+    ProjectOptionList:focus {
+        background-tint: initial;
+    }
+    """
+
     _enter_pressed: bool = False
 
     def on_key(self, event: Key) -> None:

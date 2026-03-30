@@ -1,24 +1,60 @@
-/* PipNav — Pip-Boy 3000 Theme
- * Amber (#FFB000) on black (#0A0A0A) throughout.
- * Box-drawing borders, monospace, no other text colors except:
- *   Dimmed/secondary: #996600
- *   Error: #FF4444
- *   Success/clean: #00FF41
+/* PipNav — Pip-Boy 3000 Fallout 4 Green Theme
+ *
+ * Primary:    #55FF88  (Pip-Boy green, slightly faded)
+ * Dimmed:     #1A8033  (dark green for secondary text)
+ * Background: #0D2B0D  (very dark green)
+ * Highlight:  #55FF88 on #0D2B0D reversed
+ * Error:      #FF4444
  */
 
 /* ── Global ────────────────────────────────────────────────── */
 
 Screen {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     layers: default overlay;
 }
 
 * {
-    scrollbar-background: #0A0A0A;
-    scrollbar-color: #996600;
-    scrollbar-color-hover: #FFB000;
-    scrollbar-color-active: #FFB000;
+    scrollbar-background: #0D2B0D;
+    scrollbar-color: #1A8033;
+    scrollbar-color-hover: #55FF88;
+    scrollbar-color-active: #55FF88;
+}
+
+/* Remove focus borders */
+*:focus {
+    border: none;
+}
+
+*:focus-within {
+    border: none;
+}
+
+OptionList:focus {
+    border: none;
+    background: #0D2B0D;
+}
+
+DirectoryTree:focus {
+    border: none;
+    background: #0D2B0D;
+}
+
+/* FILES tab should not change background when focused */
+#FILES:focus-within {
+    background: #0D2B0D;
+}
+
+#SESSIONS:focus-within {
+    background: #0D2B0D;
+}
+
+/* ── Vignette ──────────────────────────────────────────────── */
+/* Dark border around the entire screen simulates CRT edge falloff */
+
+Screen {
+    border: wide #021002;
 }
 
 /* ── Header ────────────────────────────────────────────────── */
@@ -26,19 +62,19 @@ Screen {
 #header {
     height: auto;
     max-height: 9;
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     padding: 0 1;
-    border-bottom: solid #996600;
+    border-bottom: solid #1A8033;
 }
 
 #logo {
-    color: #FFB000;
+    color: #55FF88;
     text-style: bold;
 }
 
 #tab-bar {
-    color: #FFB000;
+    color: #55FF88;
     dock: right;
     width: auto;
     padding: 0 2;
@@ -54,35 +90,40 @@ Screen {
 
 #project-list {
     width: 34;
-    border-right: solid #996600;
-    background: #0A0A0A;
+    border-right: solid #1A8033;
+    background: #0D2B0D;
 }
 
 #project-options {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     border: none;
+    padding: 0;
 }
 
 #project-options:focus {
     border: none;
 }
 
+#project-options:focus-within {
+    border: none;
+}
+
 #project-options > .option-list--option {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     padding: 0 1;
 }
 
 #project-options > .option-list--option-highlighted {
-    background: #FFB000;
-    color: #0A0A0A;
+    background: #55FF88;
+    color: #0D2B0D;
     text-style: bold;
 }
 
 #project-options:focus > .option-list--option-highlighted {
-    background: #FFB000;
-    color: #0A0A0A;
+    background: #55FF88;
+    color: #0D2B0D;
     text-style: bold;
 }
 
@@ -91,93 +132,98 @@ Screen {
 #tab-content {
     width: 1fr;
     height: 1fr;
-    background: #0A0A0A;
+    background: #0D2B0D;
 }
 
 /* STAT tab — project detail */
 #STAT {
     padding: 1 2;
     height: 1fr;
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
 }
 
 #detail-content {
-    color: #FFB000;
+    color: #55FF88;
 }
 
 /* FILES tab */
 #FILES {
     padding: 0;
     height: 1fr;
-    background: #0A0A0A;
+    background: #0D2B0D;
 }
 
 #files-placeholder {
-    color: #996600;
+    color: #1A8033;
     padding: 1 2;
 }
 
 #file-tree {
     height: 1fr;
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
 }
 
 DirectoryTree {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
 }
 
 DirectoryTree > .directory-tree--folder {
-    color: #FFB000;
+    color: #55FF88;
     text-style: bold;
 }
 
 DirectoryTree > .directory-tree--file {
-    color: #996600;
+    color: #1A8033;
+}
+
+DirectoryTree > .directory-tree--cursor {
+    background: #55FF88;
+    color: #0D2B0D;
 }
 
 DirectoryTree:focus > .directory-tree--cursor {
-    background: #FFB000;
-    color: #0A0A0A;
+    background: #55FF88;
+    color: #0D2B0D;
 }
 
 /* SESSIONS tab */
 #SESSIONS {
     padding: 1 2;
     height: 1fr;
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
 }
 
 #sessions-placeholder {
-    color: #996600;
+    color: #1A8033;
     padding: 1 0;
 }
 
 #session-options {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     border: none;
     height: 1fr;
 }
 
 #session-options > .option-list--option {
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     padding: 0 1;
 }
 
 #session-options > .option-list--option-highlighted {
-    background: #FFB000;
-    color: #0A0A0A;
+    background: #55FF88;
+    color: #0D2B0D;
     text-style: bold;
 }
 
 #session-options:focus > .option-list--option-highlighted {
-    background: #FFB000;
-    color: #0A0A0A;
+    background: #55FF88;
+    color: #0D2B0D;
     text-style: bold;
 }
 
@@ -185,13 +231,13 @@ DirectoryTree:focus > .directory-tree--cursor {
 #LOG {
     padding: 1 2;
     height: 1fr;
-    background: #0A0A0A;
-    color: #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
     overflow-y: auto;
 }
 
 #log-content {
-    color: #FFB000;
+    color: #55FF88;
 }
 
 /* ── Search Bar ────────────────────────────────────────────── */
@@ -200,19 +246,19 @@ DirectoryTree:focus > .directory-tree--cursor {
     dock: top;
     height: auto;
     max-height: 5;
-    background: #0A0A0A;
+    background: #0D2B0D;
     padding: 0 1;
 }
 
 #search-input {
-    background: #0A0A0A;
-    color: #FFB000;
-    border: solid #996600;
+    background: #0D2B0D;
+    color: #55FF88;
+    border: solid #1A8033;
     margin: 0 0 1 0;
 }
 
 #search-input:focus {
-    border: solid #FFB000;
+    border: solid #55FF88;
 }
 
 /* ── Note Input ────────────────────────────────────────────── */
@@ -221,47 +267,68 @@ DirectoryTree:focus > .directory-tree--cursor {
     dock: bottom;
     height: auto;
     max-height: 5;
-    background: #0A0A0A;
-    color: #FFB000;
-    border: solid #996600;
+    background: #0D2B0D;
+    color: #55FF88;
+    border: solid #1A8033;
     margin: 0 1 1 1;
 }
 
 #note-input:focus {
-    border: solid #FFB000;
+    border: solid #55FF88;
 }
 
-/* ── CRT Overlay ───────────────────────────────────────────── */
+/* ── CRT Flicker Effect ────────────────────────────────────── */
 
-#crt-overlay {
-    layer: overlay;
-    dock: top;
-    width: 100%;
-    height: 100%;
-    background: transparent;
+/* Bright state — phosphor glow peak */
+Screen.crt-on {
+    color: #66FFAA;
+    background: #103510;
+}
+
+/* Dim state — phosphor decay, visible brightness drop */
+Screen.crt-dim {
+    color: #33BB55;
+    background: #081A08;
+}
+
+/* Also flicker child widgets that have explicit colors */
+Screen.crt-dim #detail-content,
+Screen.crt-dim #log-content,
+Screen.crt-dim #logo,
+Screen.crt-dim #tab-bar,
+Screen.crt-dim #project-options > .option-list--option,
+Screen.crt-dim #session-options > .option-list--option,
+Screen.crt-dim DirectoryTree,
+Screen.crt-dim Footer {
+    color: #33BB55;
+}
+
+Screen.crt-dim #project-options > .option-list--option-highlighted,
+Screen.crt-dim #session-options > .option-list--option-highlighted {
+    background: #33BB55;
 }
 
 /* ── Footer ────────────────────────────────────────────────── */
 
 Footer {
-    background: #0A0A0A;
-    color: #996600;
-    border-top: solid #996600;
+    background: #0D2B0D;
+    color: #1A8033;
+    border-top: solid #1A8033;
 }
 
 Footer > .footer--key {
-    background: #996600;
-    color: #0A0A0A;
+    background: #1A8033;
+    color: #0D2B0D;
 }
 
 Footer > .footer--description {
-    color: #996600;
+    color: #1A8033;
 }
 
 /* ── Notifications ─────────────────────────────────────────── */
 
 Toast {
-    background: #0A0A0A;
-    color: #FFB000;
-    border: solid #FFB000;
+    background: #0D2B0D;
+    color: #55FF88;
+    border: solid #55FF88;
 }

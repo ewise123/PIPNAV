@@ -29,6 +29,33 @@ HIDDEN_DIRS = {
 class FilteredProjectTree(DirectoryTree):
     """DirectoryTree that hides common noise directories."""
 
+    DEFAULT_CSS = """
+    FilteredProjectTree {
+        background-tint: initial;
+    }
+    FilteredProjectTree:focus {
+        background-tint: initial;
+    }
+    FilteredProjectTree > .tree--guides {
+        color: #1A8033;
+    }
+    FilteredProjectTree > .tree--guides-hover {
+        color: #1A8033;
+    }
+    FilteredProjectTree > .tree--guides-selected {
+        color: #1A8033;
+    }
+    FilteredProjectTree:focus > .tree--guides {
+        color: #1A8033;
+    }
+    FilteredProjectTree:focus > .tree--guides-hover {
+        color: #1A8033;
+    }
+    FilteredProjectTree:focus > .tree--guides-selected {
+        color: #1A8033;
+    }
+    """
+
     def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
         """Filter out hidden and noise directories."""
         return [

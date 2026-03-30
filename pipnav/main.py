@@ -8,7 +8,33 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
+from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
+
+PIPBOY_THEME = Theme(
+    name="pipboy",
+    primary="#55FF88",
+    secondary="#1A8033",
+    accent="#55FF88",
+    foreground="#55FF88",
+    background="#0D2B0D",
+    surface="#0D2B0D",
+    panel="#0D2B0D",
+    warning="#55FF88",
+    error="#FF4444",
+    success="#55FF88",
+    dark=True,
+    variables={
+        "block-cursor-background": "#55FF88",
+        "block-cursor-foreground": "#0D2B0D",
+        "block-cursor-blurred-background": "#0D2B0D",
+        "block-cursor-blurred-foreground": "#55FF88",
+        "block-hover-background": "transparent",
+        "surface-active": "#0D2B0D",
+        "input-cursor-background": "#55FF88",
+        "input-cursor-foreground": "#0D2B0D",
+    },
+)
 
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
@@ -25,7 +51,6 @@ from pipnav.core.search import filter_projects
 from pipnav.core.sessions import SessionInfo, load_sessions, record_session
 from pipnav.core.utils import read_readme_preview
 from pipnav.ui.boot_screen import BootScreen
-from pipnav.ui.crt_overlay import CRTOverlay
 from pipnav.ui.files_tab import FilesTab
 from pipnav.ui.header import PipNavHeader
 from pipnav.ui.help_overlay import HelpScreen
@@ -68,6 +93,8 @@ class PipNavApp(App):
 
     def __init__(self) -> None:
         super().__init__()
+        self.register_theme(PIPBOY_THEME)
+        self.theme = "pipboy"
         self._config: PipNavConfig = PipNavConfig()
         self._all_projects: tuple[ProjectInfo, ...] = ()
         self._git_statuses: dict[str, GitStatus | None] = {}
@@ -75,6 +102,9 @@ class PipNavApp(App):
         self._notes: dict[str, ProjectNotes] = {}
         self._current_tab: str = "STAT"
         self._editing_note: bool = False
+        # CRT flicker state
+        self._crt_timer: object | None = None
+        self._crt_bright: bool = True
         # Navigation stack for drilling into folders
         self._nav_stack: list[tuple[str, ...]] = []
         self._current_roots: tuple[str, ...] = ()
@@ -90,7 +120,6 @@ class PipNavApp(App):
                 yield LogTab(id="LOG")
                 yield SessionsTab(id="SESSIONS")
         yield Input(placeholder="Enter note (max 200 chars)...", id="note-input")
-        yield CRTOverlay(id="crt-overlay")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -105,9 +134,9 @@ class PipNavApp(App):
         self.query_one("#search-bar", SearchBar).display = False
         self.query_one("#note-input", Input).display = False
 
-        # CRT overlay
-        crt = self.query_one("#crt-overlay", CRTOverlay)
-        crt.display = self._config.crt_effects
+        # CRT flicker effect
+        if self._config.crt_effects:
+            self._enable_crt()
 
         # Show boot screen if CRT effects are on (otherwise skip)
         if self._config.crt_effects:
@@ -366,10 +395,37 @@ class PipNavApp(App):
     # --- CRT effects ---
 
     def action_toggle_crt(self) -> None:
-        """Toggle CRT scanline effects."""
+        """Toggle CRT flicker effect."""
         new_value = not self._config.crt_effects
         self._config = update_config(self._config, crt_effects=new_value)
-        self.query_one("#crt-overlay", CRTOverlay).display = new_value
+        if new_value:
+            self._enable_crt()
+            self.notify("CRT effects ON")
+        else:
+            self._disable_crt()
+            self.notify("CRT effects OFF")
+
+    def _enable_crt(self) -> None:
+        """Start CRT flicker — alternate between bright and dim green."""
+        self.add_class("crt-on")
+        self._crt_timer = self.set_interval(0.15, self._crt_flicker)
+        self._crt_bright = True
+
+    def _disable_crt(self) -> None:
+        """Stop CRT flicker and restore normal colors."""
+        self.remove_class("crt-on")
+        self.remove_class("crt-dim")
+        if self._crt_timer is not None:
+            self._crt_timer.stop()  # type: ignore[union-attr]
+            self._crt_timer = None
+
+    def _crt_flicker(self) -> None:
+        """Toggle between bright and dim states for CRT flicker."""
+        self._crt_bright = not self._crt_bright
+        if self._crt_bright:
+            self.remove_class("crt-dim")
+        else:
+            self.add_class("crt-dim")
 
     # --- Help ---
 

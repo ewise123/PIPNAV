@@ -106,10 +106,10 @@ No other third-party dependencies unless clearly justified. Prefer stdlib.
 
 The visual theme is the point of this project. Do not compromise it for convenience.
 
-- **Colors:** Amber `#FFB000` text on black `#0A0A0A` background. No other text colors except:
-  - Dimmed/secondary info: `#996600` (darker amber)
+- **Colors:** Pip-Boy green `#33FF66` text on dark green `#061A06` background. No other text colors except:
+  - Dimmed/secondary info: `#1A8033` (dark green)
   - Error states: `#FF4444` (red)
-  - Success/clean state: `#00FF41` (matrix green, used sparingly)
+  - Vignette border: `#021002` (near-black green)
 - **Font:** Monospace throughout. No proportional fonts anywhere.
 - **Borders:** Box-drawing characters only (`─`, `│`, `┌`, `┐`, `└`, `┘`, `├`, `┤`, `┬`, `┴`, `┼`)
 - **CRT effects** (scanlines, flicker) are toggleable. Default OFF. Implement as a CSS overlay.

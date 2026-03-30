@@ -22,8 +22,8 @@ class BootScreen(Screen):
 
     DEFAULT_CSS = """
     BootScreen {
-        background: #0A0A0A;
-        color: #FFB000;
+        background: #0D2B0D;
+        color: #55FF88;
     }
     BootScreen #boot-text {
         padding: 2 4;
@@ -35,6 +35,7 @@ class BootScreen(Screen):
         super().__init__()
         self._line_index = 0
         self._timer_handle: object | None = None
+        self._current_text = ""
 
     def compose(self) -> ComposeResult:
         yield Static("", id="boot-text")
@@ -51,10 +52,9 @@ class BootScreen(Screen):
                 self._timer_handle.stop()  # type: ignore[union-attr]
             return
 
-        widget = self.query_one("#boot-text", Static)
-        current = str(widget.renderable) if widget.renderable else ""
         line = BOOT_LINES[self._line_index]
-        widget.update(current + "\n" + line)
+        self._current_text += "\n" + line
+        self.query_one("#boot-text", Static).update(self._current_text)
         self._line_index += 1
 
     def _finish(self) -> None:
