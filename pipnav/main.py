@@ -360,7 +360,6 @@ class PipNavApp(App):
     @on(ProjectList.Selected)
     def _on_project_selected(self, event: ProjectList.Selected) -> None:
         """Update detail panel and tabs when a project is selected."""
-        play_sound("select")
         path = event.path
         name = event.name
 
@@ -400,7 +399,8 @@ class PipNavApp(App):
 
     def _apply_tab(self) -> None:
         """Apply the current tab selection to UI."""
-        # Static effect when CRT is on
+        play_sound("select")
+
         if self._config.crt_effects:
             self._flash_static()
 
