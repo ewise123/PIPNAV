@@ -20,6 +20,7 @@ class PipNavConfig:
     stale_threshold_days: int = 30
     vscode_command: str = "code"
     claude_command: str = "claude"
+    color_scheme: str = "green"
 
 
 def _ensure_pipnav_dir() -> Path:
@@ -49,6 +50,7 @@ def _dict_to_config(data: dict) -> PipNavConfig:
         ),
         vscode_command=data.get("vscode_command", defaults.vscode_command),
         claude_command=data.get("claude_command", defaults.claude_command),
+        color_scheme=data.get("color_scheme", defaults.color_scheme),
     )
 
 

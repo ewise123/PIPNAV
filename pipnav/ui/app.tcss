@@ -311,21 +311,79 @@ Screen.crt-dim #session-options > .option-list--option-highlighted {
     background: #5A9E33;
 }
 
-/* ── Footer ────────────────────────────────────────────────── */
-
-Footer {
-    background: #0D2B0D;
-    color: #1A8033;
-    border-top: solid #1A8033;
+/* CRT static flash on tab switch */
+Screen.crt-static {
+    opacity: 0.3;
 }
 
-Footer > .footer--key {
+/* ── Status Bar (replaces Footer) ─────────────────────────── */
+
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: #0D2B0D;
+    color: #8EFE55;
+    border-top: solid #1A8033;
+    padding: 0 1;
+}
+
+#status-content {
+    color: #8EFE55;
+}
+
+/* ── Sparkline ─────────────────────────────────────────────── */
+
+#sparkline-label {
+    color: #1A8033;
+    margin-top: 1;
+}
+
+#detail-sparkline {
+    height: 2;
+    margin: 0 0 1 0;
+    background-tint: initial;
+}
+
+#detail-sparkline:focus {
+    background-tint: initial;
+}
+
+/* ── INV Tab (DataTable) ──────────────────────────────────── */
+
+#INV {
+    height: 1fr;
+    background: #0D2B0D;
+    color: #8EFE55;
+}
+
+#inv-table {
+    height: 1fr;
+    background: #0D2B0D;
+    color: #8EFE55;
+    background-tint: initial;
+}
+
+#inv-table:focus {
+    background-tint: initial;
+}
+
+DataTable > .datatable--header {
     background: #1A8033;
+    color: #0D2B0D;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #8EFE55;
     color: #0D2B0D;
 }
 
-Footer > .footer--description {
-    color: #1A8033;
+DataTable > .datatable--even-row {
+    background: #0D2B0D;
+}
+
+DataTable > .datatable--odd-row {
+    background: #0D2B0D;
 }
 
 /* ── Notifications ─────────────────────────────────────────── */

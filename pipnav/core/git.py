@@ -132,6 +132,32 @@ def get_git_log(path: Path, max_entries: int = 20) -> tuple[GitLogEntry, ...]:
         return ()
 
 
+def get_commit_frequency(path: Path, days: int = 30) -> tuple[float, ...]:
+    """Return daily commit counts for the last N days. Never raises."""
+    logger = get_logger()
+    try:
+        from datetime import datetime, timedelta
+
+        from git import Repo
+
+        repo = Repo(path)
+        cutoff = datetime.now() - timedelta(days=days)
+        counts: list[int] = [0] * days
+
+        for commit in repo.iter_commits():
+            commit_dt = commit.committed_datetime.replace(tzinfo=None)
+            if commit_dt < cutoff:
+                break
+            day_offset = (datetime.now() - commit_dt).days
+            if 0 <= day_offset < days:
+                counts[days - 1 - day_offset] += 1
+
+        return tuple(float(c) for c in counts)
+    except Exception as exc:
+        logger.debug("Error getting commit frequency for %s: %s", path, exc)
+        return ()
+
+
 def compute_badge(
     git_status: GitStatus | None,
     has_session: bool,

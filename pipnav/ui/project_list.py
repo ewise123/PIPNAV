@@ -21,6 +21,8 @@ class ProjectEntry:
     name: str
     path: Path
     badge: str
+    is_stale: bool = False
+    has_warning: bool = False
 
 
 class ProjectOptionList(OptionList):
@@ -82,7 +84,14 @@ class ProjectList(Widget):
         option_list = self.query_one("#project-options", ProjectOptionList)
         option_list.clear_options()
         for entry in entries:
-            label = f"  {entry.name:<26} {entry.badge}"
+            badge = entry.badge
+            if entry.has_warning:
+                badge = f"[blink]{badge}[/blink]"
+            if entry.is_stale:
+                name_text = f"[dim]{entry.name}[/dim]"
+            else:
+                name_text = entry.name
+            label = f"  {name_text:<26} {badge}"
             option_list.add_option(Option(label, id=str(entry.path)))
 
         # Select first item if available

@@ -15,8 +15,8 @@ HELP_TEXT = """\
   Enter            Drill into folder / select session
   Backspace        Go back to parent
   Esc              Go back / close / quit
-  Tab              Cycle tabs (STAT / FILES / LOG / SESSIONS)
-  1 / 2 / 3 / 4   Jump to STAT / FILES / LOG / SESSIONS tab
+  Tab              Cycle tabs (STAT / FILES / LOG / SESSIONS / INV)
+  1-5              Jump to STAT / FILES / LOG / SESSIONS / INV
 
 [bold]Actions[/]
   v                Open project in VS Code
@@ -30,6 +30,7 @@ HELP_TEXT = """\
   F5               Refresh all project metadata
 
 [bold]Display[/]
+  p                Cycle color scheme (green/amber/blue/white)
   ~ or `           Toggle CRT effects
   ?                Show this help
   q or Esc         Quit

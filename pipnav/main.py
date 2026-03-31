@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+import string
 from pathlib import Path
 
 from textual import on, work
@@ -9,9 +11,10 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.theme import Theme
-from textual.widgets import ContentSwitcher, DirectoryTree, Footer, Input
+from textual.widgets import ContentSwitcher, DirectoryTree, Input, Static
 
 from pipnav.core.config import PipNavConfig, load_config, update_config
+from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.launcher import launch_claude, launch_vscode
 from pipnav.core.logging import setup_logging
@@ -19,41 +22,75 @@ from pipnav.core.notes import ProjectNotes, cycle_tag, load_notes, set_note
 from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
 from pipnav.core.search import filter_projects
 from pipnav.core.sessions import SessionInfo, load_sessions, record_session
+from pipnav.core.stats import compute_aggregate_stats
 from pipnav.core.utils import read_readme_preview
 from pipnav.ui.boot_screen import BootScreen
 from pipnav.ui.files_tab import FilesTab
 from pipnav.ui.header import PipNavHeader
 from pipnav.ui.help_overlay import HelpScreen
+from pipnav.ui.idle_screen import IdleScreen
+from pipnav.ui.inventory_tab import InventoryTab
 from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
 from pipnav.ui.sessions_tab import SessionsTab
+from pipnav.ui.status_bar import StatusBar
 
-PIPBOY_THEME = Theme(
-    name="pipboy",
-    primary="#8EFE55",
-    secondary="#1A8033",
-    accent="#8EFE55",
-    foreground="#8EFE55",
-    background="#0D2B0D",
-    surface="#0D2B0D",
-    panel="#0D2B0D",
-    warning="#8EFE55",
-    error="#FF4444",
-    success="#8EFE55",
-    dark=True,
-    variables={
-        "block-cursor-background": "#8EFE55",
-        "block-cursor-foreground": "#0D2B0D",
-        "block-cursor-blurred-background": "#0D2B0D",
-        "block-cursor-blurred-foreground": "#8EFE55",
-        "block-hover-background": "transparent",
-        "surface-active": "#0D2B0D",
-        "input-cursor-background": "#8EFE55",
-        "input-cursor-foreground": "#0D2B0D",
+# --- Color scheme themes ---
+
+_THEME_COLORS = {
+    "green": {
+        "primary": "#8EFE55", "secondary": "#1A8033", "bg": "#0D2B0D",
+        "crt_bright": "#A4FE77", "crt_dim": "#5A9E33",
+        "crt_bg_bright": "#103510", "crt_bg_dim": "#081A08",
     },
-)
+    "amber": {
+        "primary": "#FFB000", "secondary": "#996600", "bg": "#2B1A00",
+        "crt_bright": "#FFCC44", "crt_dim": "#CC8800",
+        "crt_bg_bright": "#352200", "crt_bg_dim": "#1A1100",
+    },
+    "blue": {
+        "primary": "#00BFFF", "secondary": "#006688", "bg": "#001A2B",
+        "crt_bright": "#44DDFF", "crt_dim": "#0088AA",
+        "crt_bg_bright": "#002235", "crt_bg_dim": "#001018",
+    },
+    "white": {
+        "primary": "#E0E0E0", "secondary": "#666666", "bg": "#1A1A1A",
+        "crt_bright": "#F0F0F0", "crt_dim": "#999999",
+        "crt_bg_bright": "#222222", "crt_bg_dim": "#111111",
+    },
+}
+
+SCHEME_NAMES = ("green", "amber", "blue", "white")
+
+
+def _make_theme(name: str, colors: dict[str, str]) -> Theme:
+    """Create a Textual Theme from a color dict."""
+    return Theme(
+        name=f"pipboy-{name}",
+        primary=colors["primary"],
+        secondary=colors["secondary"],
+        accent=colors["primary"],
+        foreground=colors["primary"],
+        background=colors["bg"],
+        surface=colors["bg"],
+        panel=colors["bg"],
+        warning=colors["primary"],
+        error="#FF4444",
+        success=colors["primary"],
+        dark=True,
+        variables={
+            "block-cursor-background": colors["primary"],
+            "block-cursor-foreground": colors["bg"],
+            "block-cursor-blurred-background": colors["bg"],
+            "block-cursor-blurred-foreground": colors["primary"],
+            "block-hover-background": "transparent",
+            "surface-active": colors["bg"],
+            "input-cursor-background": colors["primary"],
+            "input-cursor-foreground": colors["bg"],
+        },
+    )
 
 
 class PipBoyInput(Input):
@@ -67,6 +104,10 @@ class PipBoyInput(Input):
         background-tint: initial;
     }
     """
+
+
+# Idle timeout in seconds
+IDLE_TIMEOUT = 300
 
 
 class PipNavApp(App):
@@ -91,18 +132,29 @@ class PipNavApp(App):
         ("2", "show_tab('FILES')", "FILES"),
         ("3", "show_tab('LOG')", "LOG"),
         ("4", "show_tab('SESSIONS')", "SESSIONS"),
+        ("5", "show_tab('INV')", "INV"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_note", "Note"),
+        ("p", "cycle_color_scheme", "Color"),
         ("f5", "refresh", "Refresh"),
         ("grave_accent", "toggle_crt", "CRT"),
         ("tilde", "toggle_crt", "CRT"),
         ("question_mark", "show_help", "Help"),
     ]
 
+    _CHAR_ACTIONS = frozenset({
+        "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
+        "open_vscode", "open_claude", "resume_claude", "start_search",
+        "cycle_tag", "edit_note", "toggle_crt", "show_help",
+        "cycle_color_scheme",
+    })
+
     def __init__(self) -> None:
         super().__init__()
-        self.register_theme(PIPBOY_THEME)
-        self.theme = "pipboy"
+        # Register all color scheme themes
+        for name, colors in _THEME_COLORS.items():
+            self.register_theme(_make_theme(name, colors))
+
         self._config: PipNavConfig = PipNavConfig()
         self._all_projects: tuple[ProjectInfo, ...] = ()
         self._git_statuses: dict[str, GitStatus | None] = {}
@@ -114,6 +166,7 @@ class PipNavApp(App):
         self._crt_bright: bool = True
         self._nav_stack: list[tuple[str, ...]] = []
         self._current_roots: tuple[str, ...] = ()
+        self._idle_timer: object | None = None
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -125,8 +178,9 @@ class PipNavApp(App):
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
                 yield SessionsTab(id="SESSIONS")
+                yield InventoryTab(id="INV")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
-        yield Footer()
+        yield StatusBar(id="status-bar")
 
     def on_mount(self) -> None:
         """Initialize the app — load config, discover projects."""
@@ -135,6 +189,12 @@ class PipNavApp(App):
         self._sessions = load_sessions()
         self._notes = load_notes()
         self._current_roots = self._config.project_roots
+
+        # Apply color scheme from config
+        scheme = getattr(self._config, "color_scheme", "green")
+        if scheme not in SCHEME_NAMES:
+            scheme = "green"
+        self.theme = f"pipboy-{scheme}"
 
         self.query_one("#search-bar", SearchBar).display = False
         self.query_one("#note-input", PipBoyInput).display = False
@@ -145,15 +205,9 @@ class PipNavApp(App):
 
         self.query_one("#project-list", ProjectList).focus_list()
         self._load_projects()
+        self._reset_idle_timer()
 
     # --- Key handling ---
-
-    # Actions that should be blocked when typing in an Input
-    _CHAR_ACTIONS = frozenset({
-        "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
-        "open_vscode", "open_claude", "resume_claude", "start_search",
-        "cycle_tag", "edit_note", "toggle_crt", "show_help",
-    })
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Block single-char bindings when an Input has focus."""
@@ -162,11 +216,24 @@ class PipNavApp(App):
         return True
 
     def on_key(self, event: Key) -> None:
-        """Intercept Tab before Textual's focus system consumes it."""
+        """Intercept Tab and reset idle timer on any key."""
+        self._reset_idle_timer()
         if event.key == "tab":
             event.stop()
             event.prevent_default()
             self.action_next_tab()
+
+    # --- Idle screen ---
+
+    def _reset_idle_timer(self) -> None:
+        """Reset the idle timeout. Shows PLEASE STAND BY after inactivity."""
+        if self._idle_timer is not None:
+            self._idle_timer.stop()  # type: ignore[union-attr]
+        self._idle_timer = self.set_timer(IDLE_TIMEOUT, self._show_idle)
+
+    def _show_idle(self) -> None:
+        """Show the PLEASE STAND BY screen."""
+        self.push_screen(IdleScreen())
 
     # --- Project loading ---
 
@@ -193,6 +260,8 @@ class PipNavApp(App):
         self._all_projects = projects
         self._git_statuses.update(statuses)
         self._rebuild_list(projects)
+        self._update_status_bar()
+        self._update_inventory()
 
     def _rebuild_list(self, projects: tuple[ProjectInfo, ...]) -> None:
         """Rebuild the OptionList with the given projects."""
@@ -202,11 +271,42 @@ class PipNavApp(App):
             has_session = str(project.path) in self._sessions
             stale = is_stale(project, self._config.stale_threshold_days)
             badge = compute_badge(git_status, has_session, stale)
+            has_warning = git_status is not None and git_status.is_dirty
             entries.append(
-                ProjectEntry(name=project.name, path=project.path, badge=badge)
+                ProjectEntry(
+                    name=project.name,
+                    path=project.path,
+                    badge=badge,
+                    is_stale=stale,
+                    has_warning=has_warning,
+                )
             )
 
         self.query_one("#project-list", ProjectList).set_projects(tuple(entries))
+
+    def _update_status_bar(self) -> None:
+        """Update the Pip-Boy status bar with aggregate stats."""
+        stats = compute_aggregate_stats(self._git_statuses, self._sessions)
+        try:
+            self.query_one("#status-bar", StatusBar).update_stats(
+                total=stats["total"],
+                clean=stats["clean"],
+                sessions=stats["sessions"],
+            )
+        except Exception:
+            pass
+
+    def _update_inventory(self) -> None:
+        """Update the INV tab DataTable."""
+        try:
+            projects = tuple(
+                (p.name, p.path) for p in self._all_projects
+            )
+            self.query_one("#INV", InventoryTab).update_inventory(
+                projects, self._git_statuses
+            )
+        except Exception:
+            pass
 
     # --- Directory drill-down ---
 
@@ -284,7 +384,7 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG", "SESSIONS")
+        tabs = ("STAT", "FILES", "LOG", "SESSIONS", "INV")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
@@ -299,8 +399,17 @@ class PipNavApp(App):
 
     def _apply_tab(self) -> None:
         """Apply the current tab selection to UI."""
+        # Static effect when CRT is on
+        if self._config.crt_effects:
+            self._flash_static()
+
         self.query_one("#tab-content", ContentSwitcher).current = self._current_tab
         self.query_one("#header", PipNavHeader).active_tab = self._current_tab
+
+    def _flash_static(self) -> None:
+        """Brief static flash when switching tabs (CRT effect)."""
+        self.add_class("crt-static")
+        self.set_timer(0.08, lambda: self.remove_class("crt-static"))
 
     # --- Launchers ---
 
@@ -390,6 +499,21 @@ class PipNavApp(App):
         self._editing_note = False
         self.query_one("#project-list", ProjectList).focus_list()
 
+    # --- Color scheme ---
+
+    def action_cycle_color_scheme(self) -> None:
+        """Cycle through Pip-Boy color schemes."""
+        current = getattr(self._config, "color_scheme", "green")
+        try:
+            idx = SCHEME_NAMES.index(current)
+            next_scheme = SCHEME_NAMES[(idx + 1) % len(SCHEME_NAMES)]
+        except ValueError:
+            next_scheme = "green"
+
+        self._config = update_config(self._config, color_scheme=next_scheme)
+        self.theme = f"pipboy-{next_scheme}"
+        self.notify(f"Color scheme: {next_scheme.upper()}")
+
     # --- CRT effects ---
 
     def action_toggle_crt(self) -> None:
@@ -404,7 +528,7 @@ class PipNavApp(App):
             self.notify("CRT effects OFF")
 
     def _enable_crt(self) -> None:
-        """Start CRT flicker — alternate between bright and dim green."""
+        """Start CRT flicker — alternate between bright and dim."""
         self.add_class("crt-on")
         self._crt_timer = self.set_interval(0.15, self._crt_flicker)
         self._crt_bright = True
@@ -437,8 +561,8 @@ class PipNavApp(App):
         """Refresh all project metadata."""
         self._sessions = load_sessions()
         self._notes = load_notes()
+        self.notify(random_loading_message())
         self._load_projects()
-        self.notify("Refreshing projects...")
 
     # --- Focus and cursor ---
 
@@ -452,6 +576,8 @@ class PipNavApp(App):
                 self.query_one("#LOG").focus()
             elif tab == "SESSIONS":
                 self.query_one("#session-options").focus()
+            elif tab == "INV":
+                self.query_one("#inv-table").focus()
         except Exception:
             pass
 

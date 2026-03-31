@@ -28,7 +28,7 @@ pytest -s  # with output
 - Python 3.10+, type hints, `pathlib.Path` for filesystem
 - Frozen dataclasses for all data types (immutability)
 - `@work(thread=True)` for blocking I/O (git, filesystem)
-- Colors: `#8EFE55` (primary green), `#1A8033` (dim), `#0D2B0D` (background)
+- 4 color schemes via Textual themes: green, amber, blue, white (press `p` to cycle)
 - Config/state in `~/.pipnav/` as JSON
 - Errors: never crash, degrade gracefully, log to `~/.pipnav/debug.log`
 
@@ -37,5 +37,11 @@ pytest -s  # with output
 - `j/k` navigate, `h/l` switch focus left/right
 - `Enter` drill into folder, `Backspace` go back
 - `v` VS Code, `c` Claude Code, `r` resume Claude
-- `Tab` or `1-4` switch tabs (STAT/FILES/LOG/SESSIONS)
-- `/` search, `t` tag, `n` note, `~` CRT effects, `?` help, `q` quit
+- `Tab` or `1-5` switch tabs (STAT/FILES/LOG/SESSIONS/INV)
+- `/` search, `t` tag, `n` note, `p` color scheme, `~` CRT effects, `?` help, `q` quit
+
+## Future Ideas
+
+- **Digits widget** — large 3x3 numeric displays for project count or session count in header
+- **textual-canvas** — half-block pixel drawing for mini project maps or decorative borders
+- **Typewriter text rendering** — character-by-character reveal when selecting projects in detail panel

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from textual import work
 from textual.app import ComposeResult
+from textual.color import Color
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Sparkline, Static
 
-from pipnav.core.git import GitStatus
+from pipnav.core.git import GitStatus, get_commit_frequency
 from pipnav.core.notes import ProjectNotes
 from pipnav.core.sessions import SessionInfo
 from pipnav.core.utils import time_ago
@@ -30,6 +32,13 @@ class ProjectDetail(Widget):
 
     def compose(self) -> ComposeResult:
         yield Static("Select a project", id="detail-content")
+        yield Static("[bold]ACTIVITY:[/] (30 days)", id="sparkline-label")
+        yield Sparkline([], id="detail-sparkline")
+
+    def on_mount(self) -> None:
+        """Hide sparkline initially."""
+        self.query_one("#sparkline-label", Static).display = False
+        self.query_one("#detail-sparkline", Sparkline).display = False
 
     def update_detail(
         self,
@@ -48,6 +57,31 @@ class ProjectDetail(Widget):
         self.project_name = name
         self.project_path = path
         self._render_detail()
+
+        # Load sparkline data in background
+        if git_status is not None:
+            self._load_sparkline(path)
+        else:
+            self.query_one("#sparkline-label", Static).display = False
+            self.query_one("#detail-sparkline", Sparkline).display = False
+
+    @work(exclusive=True, thread=True)
+    def _load_sparkline(self, path: Path) -> None:
+        """Fetch commit frequency in background."""
+        data = get_commit_frequency(path, days=30)
+        self.app.call_from_thread(self._update_sparkline, data)
+
+    def _update_sparkline(self, data: tuple[float, ...]) -> None:
+        """Update the sparkline widget with commit data."""
+        sparkline = self.query_one("#detail-sparkline", Sparkline)
+        label = self.query_one("#sparkline-label", Static)
+        if data and any(d > 0 for d in data):
+            sparkline.data = list(data)
+            sparkline.display = True
+            label.display = True
+        else:
+            sparkline.display = False
+            label.display = False
 
     def _render_detail(self) -> None:
         """Render the detail content."""
@@ -84,25 +118,21 @@ class ProjectDetail(Widget):
         else:
             lines.append("[bold]GIT:[/]     Not a git repository")
 
-        # Claude Code session
         if self._session is not None and self._session.resumable:
             session_text = f"Session resumable ({time_ago(self._session.last_session)})"
         else:
             session_text = "No session"
         lines.append(f"[bold]CLAUDE:[/]  {session_text}")
 
-        # Tags
         if self._notes.tags:
             lines.append(f"[bold]TAGS:[/]    {', '.join(self._notes.tags)}")
 
-        # README preview
         if self._readme:
             lines.append("")
             lines.append("[bold]README:[/]  " + "─" * 40)
             for readme_line in self._readme.split("\n"):
                 lines.append(f"  {readme_line}")
 
-        # Notes
         if self._notes.note:
             lines.append("")
             lines.append(f"[bold]NOTE:[/]    {self._notes.note}")
