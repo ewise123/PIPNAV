@@ -525,15 +525,8 @@ class PipNavApp(App):
             play_sound("crt_on")
             self.notify("Sound ON")
         else:
-            play_sound("crt_off")
-            # Small delay so the sound plays before mute kicks in
-            self.set_timer(0.3, self._mute_sound)
+            audio._muted = True
             self.notify("Sound OFF")
-
-    def _mute_sound(self) -> None:
-        """Mute sound after a short delay."""
-        from pipnav.core import audio
-        audio._muted = True
 
     # --- Help ---
 
