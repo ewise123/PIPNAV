@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.theme import Theme
-from textual.widgets import ContentSwitcher, DirectoryTree, Input, Static
+from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, OptionList, Static
 
 from pipnav.core.audio import init_audio, play_sound
 from pipnav.core.config import PipNavConfig, load_config, update_config
@@ -188,9 +188,8 @@ class PipNavApp(App):
         setup_logging()
         self._config = load_config()
 
-        # Fire boot sound ASAP — before other setup
-        if self._config.crt_effects:
-            play_sound("boot")
+        # Fire boot sound ASAP — always play on startup
+        play_sound("boot")
 
         self._sessions = load_sessions()
         self._notes = load_notes()
@@ -633,6 +632,21 @@ class PipNavApp(App):
             self.notify(err, severity="error")
 
     # --- File tree integration ---
+
+    @on(DirectoryTree.NodeHighlighted)
+    def _on_tree_navigate(self, event: DirectoryTree.NodeHighlighted) -> None:
+        """Play navigate sound when moving in file tree."""
+        play_sound("navigate")
+
+    @on(OptionList.OptionHighlighted, "#session-options")
+    def _on_session_navigate(self, event: OptionList.OptionHighlighted) -> None:
+        """Play navigate sound when moving in session list."""
+        play_sound("navigate")
+
+    @on(DataTable.RowHighlighted)
+    def _on_inv_navigate(self, event: DataTable.RowHighlighted) -> None:
+        """Play navigate sound when moving in inventory table."""
+        play_sound("navigate")
 
     @on(DirectoryTree.FileSelected)
     def _on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
