@@ -13,6 +13,7 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DirectoryTree, Input, Static
 
+from pipnav.core.audio import play_sound
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
@@ -358,6 +359,7 @@ class PipNavApp(App):
     @on(ProjectList.Selected)
     def _on_project_selected(self, event: ProjectList.Selected) -> None:
         """Update detail panel and tabs when a project is selected."""
+        play_sound("select")
         path = event.path
         name = event.name
 
