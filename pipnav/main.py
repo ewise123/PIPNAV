@@ -284,12 +284,12 @@ class PipNavApp(App):
 
     def _update_status_bar(self) -> None:
         """Update the Pip-Boy status bar with aggregate stats."""
-        stats = compute_aggregate_stats(self._git_statuses, self._sessions)
+        stats = compute_aggregate_stats(self._git_statuses)
         try:
             self.query_one("#status-bar", StatusBar).update_stats(
                 total=stats["total"],
                 clean=stats["clean"],
-                sessions=stats["sessions"],
+                with_sessions=stats["projects_with_sessions"],
             )
         except Exception:
             pass

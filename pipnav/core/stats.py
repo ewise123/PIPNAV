@@ -1,14 +1,13 @@
 """Aggregate stats — compute summary metrics across all projects."""
 
-from datetime import datetime
+from pathlib import Path
 
+from pipnav.core.claude_sessions import discover_sessions_for_project
 from pipnav.core.git import GitStatus
-from pipnav.core.sessions import SessionInfo
 
 
 def compute_aggregate_stats(
     git_statuses: dict[str, GitStatus | None],
-    sessions: dict[str, SessionInfo],
 ) -> dict[str, int]:
     """Compute summary stats for the status bar."""
     total = len(git_statuses)
@@ -16,19 +15,18 @@ def compute_aggregate_stats(
         1 for gs in git_statuses.values()
         if gs is not None and not gs.is_dirty
     )
-    active_sessions = sum(
-        1 for s in sessions.values() if s.resumable
-    )
-    total_commits = 0
-    for gs in git_statuses.values():
-        if gs is not None and gs.last_commit_time is not None:
-            # Count ahead as a proxy for recent activity
-            total_commits += gs.ahead
+
+    # Count projects that have at least one Claude session
+    projects_with_sessions = 0
+    for path_str in git_statuses:
+        sessions = discover_sessions_for_project(Path(path_str))
+        if sessions:
+            projects_with_sessions += 1
 
     return {
         "total": total,
         "clean": clean,
-        "sessions": active_sessions,
+        "projects_with_sessions": projects_with_sessions,
     }
 
 
