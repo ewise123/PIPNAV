@@ -138,15 +138,15 @@ class PipNavApp(App):
         ("n", "edit_note", "Note"),
         ("p", "cycle_color_scheme", "Color"),
         ("full_stop", "refresh", "Refresh"),
-        ("grave_accent", "toggle_crt", "CRT"),
-        ("tilde", "toggle_crt", "CRT"),
+        ("grave_accent", "toggle_sound", "Sound"),
+        ("tilde", "toggle_sound", "Sound"),
         ("question_mark", "show_help", "Help"),
     ]
 
     _CHAR_ACTIONS = frozenset({
         "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
         "open_vscode", "open_claude", "resume_claude", "start_search",
-        "cycle_tag", "edit_note", "toggle_crt", "show_help",
+        "cycle_tag", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme",
     })
 
@@ -200,9 +200,8 @@ class PipNavApp(App):
         self.query_one("#search-bar", SearchBar).display = False
         self.query_one("#note-input", PipBoyInput).display = False
 
-        if self._config.crt_effects:
-            self._enable_crt()
-            self.push_screen(BootScreen())
+        # Always show boot screen
+        self.push_screen(BootScreen())
 
         self.query_one("#project-list", ProjectList).focus_list()
         self._load_projects()
@@ -516,28 +515,18 @@ class PipNavApp(App):
         self.theme = f"pipboy-{next_scheme}"
         self.notify(f"Color scheme: {next_scheme.upper()}")
 
-    # --- CRT effects ---
+    # --- Sound toggle ---
 
-    def action_toggle_crt(self) -> None:
-        """Toggle CRT flicker effect."""
-        new_value = not self._config.crt_effects
-        self._config = update_config(self._config, crt_effects=new_value)
-        if new_value:
-            play_sound("crt_on")
-            self._enable_crt()
-            self.notify("CRT effects ON")
+    def action_toggle_sound(self) -> None:
+        """Toggle sound effects on/off."""
+        from pipnav.core import audio
+        audio_enabled = not getattr(audio, "_muted", False)
+        audio._muted = audio_enabled
+        if audio_enabled:
+            self.notify("Sound OFF")
         else:
-            play_sound("crt_off")
-            self._disable_crt()
-            self.notify("CRT effects OFF")
-
-    def _enable_crt(self) -> None:
-        """Enable CRT mode — currently just enables tab switch static effect."""
-        self.screen.add_class("crt-on")
-
-    def _disable_crt(self) -> None:
-        """Disable CRT mode."""
-        self.screen.remove_class("crt-on")
+            play_sound("crt_on")
+            self.notify("Sound ON")
 
     # --- Help ---
 

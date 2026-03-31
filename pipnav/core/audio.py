@@ -24,6 +24,7 @@ SOUND_FILES: dict[str, str] = {
 _powershell: str | None = None
 _win_sounds_path: str = ""
 _last_play_time: float = 0
+_muted: bool = False
 MIN_SOUND_GAP = 0.15
 
 # Persistent PowerShell player process
@@ -103,6 +104,9 @@ def init_audio() -> None:
 def play_sound(name: str) -> None:
     """Play a named sound effect. Non-blocking, low-latency, debounced."""
     global _last_play_time, _ps_process
+
+    if _muted:
+        return
 
     now = time.monotonic()
     if now - _last_play_time < MIN_SOUND_GAP:

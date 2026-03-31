@@ -31,7 +31,7 @@ HELP_TEXT = """\
 
 [bold]Display[/]
   p                Cycle color scheme (green/amber/blue/white)
-  ~ or `           Toggle CRT effects
+  ~ or `           Toggle sound effects
   ?                Show this help
   q or Esc         Quit
 
