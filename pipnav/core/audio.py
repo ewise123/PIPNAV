@@ -98,6 +98,9 @@ def init_audio() -> None:
         pass
 
     _ps_process = _start_player()
+    # Wait for PowerShell to load the assembly and be ready
+    if _ps_process is not None:
+        time.sleep(1.0)
 
 
 def play_sound(name: str) -> None:
