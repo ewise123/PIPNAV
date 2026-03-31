@@ -152,6 +152,8 @@ class PipNavApp(App):
 
     def __init__(self) -> None:
         super().__init__()
+        # Start audio early so PowerShell is warm by on_mount
+        init_audio()
         # Register all color scheme themes
         for name, colors in _THEME_COLORS.items():
             self.register_theme(_make_theme(name, colors))
@@ -184,8 +186,12 @@ class PipNavApp(App):
     def on_mount(self) -> None:
         """Initialize the app — load config, discover projects."""
         setup_logging()
-        init_audio()
         self._config = load_config()
+
+        # Fire boot sound ASAP — before other setup
+        if self._config.crt_effects:
+            play_sound("boot")
+
         self._sessions = load_sessions()
         self._notes = load_notes()
         self._current_roots = self._config.project_roots
@@ -201,7 +207,6 @@ class PipNavApp(App):
 
         if self._config.crt_effects:
             self._enable_crt()
-            play_sound("boot")
             self.push_screen(BootScreen())
 
         self.query_one("#project-list", ProjectList).focus_list()
