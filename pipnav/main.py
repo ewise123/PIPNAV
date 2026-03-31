@@ -187,9 +187,6 @@ class PipNavApp(App):
         init_audio()
         self._config = load_config()
 
-        # Fire boot sound ASAP — always play on startup
-        play_sound("boot")
-
         self._sessions = load_sessions()
         self._notes = load_notes()
         self._current_roots = self._config.project_roots

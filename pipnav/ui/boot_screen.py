@@ -4,6 +4,8 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static
 
+from pipnav.core.audio import play_sound
+
 BOOT_LINES = (
     "",
     "VAULT-TEC INDUSTRIES (TM)",
@@ -61,7 +63,8 @@ class BootScreen(Screen):
         yield Static("", id="boot-text")
 
     def on_mount(self) -> None:
-        """Start the typewriter animation."""
+        """Start the typewriter animation and play boot sound."""
+        play_sound("boot")
         self._start_next_line()
 
     def _start_next_line(self) -> None:

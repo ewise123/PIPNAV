@@ -25,7 +25,6 @@ _powershell: str | None = None
 _win_sounds_path: str = ""
 _last_play_time: float = 0
 MIN_SOUND_GAP = 0.15
-BOOT_SOUND_GAP = 4.0  # Boot sound needs longer protection from being overridden
 
 # Persistent PowerShell player process
 _ps_process: subprocess.Popen | None = None
@@ -108,6 +107,7 @@ def play_sound(name: str) -> None:
     now = time.monotonic()
     if now - _last_play_time < MIN_SOUND_GAP:
         return
+    _last_play_time = now
 
     filename = SOUND_FILES.get(name)
     if not filename or not _win_sounds_path:
@@ -120,34 +120,6 @@ def play_sound(name: str) -> None:
         return
 
     win_file = f"{_win_sounds_path}\\{filename}"
-    _last_play_time = now
-
-    # Boot sound uses a separate one-off process so it doesn't get
-    # cut off by navigate sounds going through the persistent player
-    if name == "boot":
-        _last_play_time = now + BOOT_SOUND_GAP
-        ps = _get_powershell()
-        if ps:
-            def _play_boot() -> None:
-                try:
-                    cmd = (
-                        'Add-Type -AssemblyName presentationCore;'
-                        ' $p = New-Object System.Windows.Media.MediaPlayer;'
-                        f' $p.Open([Uri]"{win_file}");'
-                        ' $p.Play();'
-                        ' Start-Sleep -Milliseconds 5000'
-                    )
-                    subprocess.run([ps, "-NoProfile", "-WindowStyle", "Hidden", "-c", cmd], timeout=10)
-                except Exception:
-                    pass
-            threading.Thread(target=_play_boot, daemon=True).start()
-        return
-
-    if _ps_process is None or _ps_process.poll() is not None:
-        _ps_process = _start_player()
-
-    if _ps_process is None or _ps_process.stdin is None:
-        return
 
     try:
         _ps_process.stdin.write(win_file + "\n")
