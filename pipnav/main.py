@@ -82,7 +82,7 @@ def _make_theme(name: str, colors: dict[str, str]) -> Theme:
         dark=True,
         variables={
             "block-cursor-background": colors["primary"],
-            "block-cursor-foreground": colors["bg"],
+            "block-cursor-foreground": "#000000",
             "block-cursor-blurred-background": colors["bg"],
             "block-cursor-blurred-foreground": colors["primary"],
             "block-hover-background": "transparent",

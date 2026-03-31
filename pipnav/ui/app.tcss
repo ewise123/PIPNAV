@@ -104,13 +104,13 @@ DirectoryTree:focus {
 
 #project-options > .option-list--option-highlighted {
     background: $primary;
-    color: $surface;
+    color: #000000;
     text-style: bold;
 }
 
 #project-options:focus > .option-list--option-highlighted {
     background: $primary;
-    color: $surface;
+    color: #000000;
     text-style: bold;
 }
 
@@ -167,12 +167,12 @@ DirectoryTree > .directory-tree--file {
 
 DirectoryTree > .directory-tree--cursor {
     background: $primary;
-    color: $surface;
+    color: #000000;
 }
 
 DirectoryTree:focus > .directory-tree--cursor {
     background: $primary;
-    color: $surface;
+    color: #000000;
 }
 
 /* SESSIONS tab */
@@ -203,13 +203,13 @@ DirectoryTree:focus > .directory-tree--cursor {
 
 #session-options > .option-list--option-highlighted {
     background: $primary;
-    color: $surface;
+    color: #000000;
     text-style: bold;
 }
 
 #session-options:focus > .option-list--option-highlighted {
     background: $primary;
-    color: $surface;
+    color: #000000;
     text-style: bold;
 }
 
@@ -327,13 +327,13 @@ Screen.crt-static {
 
 DataTable > .datatable--header {
     background: $secondary;
-    color: $surface;
+    color: #000000;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
     background: $primary;
-    color: $surface;
+    color: #000000;
 }
 
 DataTable > .datatable--even-row {
