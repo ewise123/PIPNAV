@@ -1,28 +1,23 @@
-/* PipNav — Pip-Boy 3000 Fallout 4 Green Theme
- *
- * Primary:    #8EFE55  (Pip-Boy green, slightly faded)
- * Dimmed:     #1A8033  (dark green for secondary text)
- * Background: #0D2B0D  (very dark green)
- * Highlight:  #8EFE55 on #0D2B0D reversed
- * Error:      #FF4444
+/* PipNav — Pip-Boy Theme
+ * All colors use Textual theme variables so color scheme switching works.
+ * $primary = main text, $surface = background, $secondary = dim/borders
  */
 
 /* ── Global ────────────────────────────────────────────────── */
 
 Screen {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     layers: default overlay;
 }
 
 * {
-    scrollbar-background: #0D2B0D;
-    scrollbar-color: #1A8033;
-    scrollbar-color-hover: #8EFE55;
-    scrollbar-color-active: #8EFE55;
+    scrollbar-background: $surface;
+    scrollbar-color: $secondary;
+    scrollbar-color-hover: $primary;
+    scrollbar-color-active: $primary;
 }
 
-/* Remove focus borders */
 *:focus {
     border: none;
 }
@@ -33,42 +28,40 @@ Screen {
 
 OptionList:focus {
     border: none;
-    background: #0D2B0D;
+    background: $surface;
 }
 
 DirectoryTree:focus {
     border: none;
-    background: #0D2B0D;
+    background: $surface;
 }
 
-/* FILES tab should not change background when focused */
 #FILES:focus-within {
-    background: #0D2B0D;
+    background: $surface;
 }
 
 #SESSIONS:focus-within {
-    background: #0D2B0D;
+    background: $surface;
 }
-
 
 /* ── Header ────────────────────────────────────────────────── */
 
 #header {
     height: auto;
     max-height: 9;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     padding: 0 1;
-    border-bottom: solid #1A8033;
+    border-bottom: solid $secondary;
 }
 
 #logo {
-    color: #8EFE55;
+    color: $primary;
     text-style: bold;
 }
 
 #tab-bar {
-    color: #8EFE55;
+    color: $primary;
     dock: right;
     width: auto;
     padding: 0 2;
@@ -84,13 +77,13 @@ DirectoryTree:focus {
 
 #project-list {
     width: 34;
-    border-right: solid #1A8033;
-    background: #0D2B0D;
+    border-right: solid $secondary;
+    background: $surface;
 }
 
 #project-options {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     border: none;
     padding: 0;
 }
@@ -104,20 +97,20 @@ DirectoryTree:focus {
 }
 
 #project-options > .option-list--option {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     padding: 0 1;
 }
 
 #project-options > .option-list--option-highlighted {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
     text-style: bold;
 }
 
 #project-options:focus > .option-list--option-highlighted {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
     text-style: bold;
 }
 
@@ -126,98 +119,97 @@ DirectoryTree:focus {
 #tab-content {
     width: 1fr;
     height: 1fr;
-    background: #0D2B0D;
+    background: $surface;
 }
 
-/* STAT tab — project detail */
 #STAT {
     padding: 1 2;
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
 }
 
 #detail-content {
-    color: #8EFE55;
+    color: $primary;
 }
 
 /* FILES tab */
 #FILES {
     padding: 0;
     height: 1fr;
-    background: #0D2B0D;
+    background: $surface;
 }
 
 #files-placeholder {
-    color: #1A8033;
+    color: $secondary;
     padding: 1 2;
 }
 
 #file-tree {
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
 }
 
 DirectoryTree {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
 }
 
 DirectoryTree > .directory-tree--folder {
-    color: #8EFE55;
+    color: $primary;
     text-style: bold;
 }
 
 DirectoryTree > .directory-tree--file {
-    color: #1A8033;
+    color: $secondary;
 }
 
 DirectoryTree > .directory-tree--cursor {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
 }
 
 DirectoryTree:focus > .directory-tree--cursor {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
 }
 
 /* SESSIONS tab */
 #SESSIONS {
     padding: 1 2;
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
 }
 
 #sessions-placeholder {
-    color: #1A8033;
+    color: $secondary;
     padding: 1 0;
 }
 
 #session-options {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     border: none;
     height: 1fr;
 }
 
 #session-options > .option-list--option {
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     padding: 0 1;
 }
 
 #session-options > .option-list--option-highlighted {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
     text-style: bold;
 }
 
 #session-options:focus > .option-list--option-highlighted {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
     text-style: bold;
 }
 
@@ -225,13 +217,13 @@ DirectoryTree:focus > .directory-tree--cursor {
 #LOG {
     padding: 1 2;
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     overflow-y: auto;
 }
 
 #log-content {
-    color: #8EFE55;
+    color: $primary;
 }
 
 /* ── Search Bar ────────────────────────────────────────────── */
@@ -240,21 +232,21 @@ DirectoryTree:focus > .directory-tree--cursor {
     dock: top;
     height: auto;
     max-height: 5;
-    background: #0D2B0D;
+    background: $surface;
     padding: 0 1;
 }
 
 #search-input {
-    background: #0D2B0D;
-    color: #8EFE55;
-    border: solid #1A8033;
+    background: $surface;
+    color: $primary;
+    border: solid $secondary;
     margin: 0 0 1 0;
     background-tint: initial;
 }
 
 #search-input:focus {
-    border: solid #8EFE55;
-    background: #0D2B0D;
+    border: solid $primary;
+    background: $surface;
     background-tint: initial;
 }
 
@@ -264,77 +256,39 @@ DirectoryTree:focus > .directory-tree--cursor {
     dock: bottom;
     height: auto;
     max-height: 5;
-    background: #0D2B0D;
-    color: #8EFE55;
-    border: solid #1A8033;
+    background: $surface;
+    color: $primary;
+    border: solid $secondary;
     margin: 0 1 1 1;
-}
-
-#note-input {
     background-tint: initial;
 }
 
 #note-input:focus {
-    border: solid #8EFE55;
-    background: #0D2B0D;
+    border: solid $primary;
+    background: $surface;
     background-tint: initial;
 }
 
 /* ── CRT Flicker Effect ────────────────────────────────────── */
 
-/* Bright state — phosphor glow peak */
-Screen.crt-on {
-    color: #A4FE77;
-    background: #103510;
-}
-
-/* Dim state — phosphor decay, visible brightness drop */
 Screen.crt-dim {
-    color: #5A9E33;
-    background: #081A08;
+    opacity: 0.7;
 }
 
-/* Also flicker child widgets that have explicit colors */
-Screen.crt-dim #detail-content,
-Screen.crt-dim #log-content,
-Screen.crt-dim #logo,
-Screen.crt-dim #tab-bar,
-Screen.crt-dim #project-options > .option-list--option,
-Screen.crt-dim #session-options > .option-list--option,
-Screen.crt-dim DirectoryTree,
-Screen.crt-dim Footer {
-    color: #5A9E33;
-}
-
-Screen.crt-dim #project-options > .option-list--option-highlighted,
-Screen.crt-dim #session-options > .option-list--option-highlighted {
-    background: #5A9E33;
-}
-
-/* CRT static flash on tab switch */
 Screen.crt-static {
     opacity: 0.3;
 }
 
-/* ── Status Bar (replaces Footer) ─────────────────────────── */
-
-#status-bar {
-    dock: bottom;
-    height: 1;
-    background: #0D2B0D;
-    color: #8EFE55;
-    border-top: solid #1A8033;
-    padding: 0 1;
-}
+/* ── Status Bar ────────────────────────────────────────────── */
 
 #status-content {
-    color: #8EFE55;
+    color: $primary;
 }
 
 /* ── Sparkline ─────────────────────────────────────────────── */
 
 #sparkline-label {
-    color: #1A8033;
+    color: $secondary;
     margin-top: 1;
 }
 
@@ -352,14 +306,14 @@ Screen.crt-static {
 
 #INV {
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
 }
 
 #inv-table {
     height: 1fr;
-    background: #0D2B0D;
-    color: #8EFE55;
+    background: $surface;
+    color: $primary;
     background-tint: initial;
 }
 
@@ -368,28 +322,28 @@ Screen.crt-static {
 }
 
 DataTable > .datatable--header {
-    background: #1A8033;
-    color: #0D2B0D;
+    background: $secondary;
+    color: $surface;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: #8EFE55;
-    color: #0D2B0D;
+    background: $primary;
+    color: $surface;
 }
 
 DataTable > .datatable--even-row {
-    background: #0D2B0D;
+    background: $surface;
 }
 
 DataTable > .datatable--odd-row {
-    background: #0D2B0D;
+    background: $surface;
 }
 
 /* ── Notifications ─────────────────────────────────────────── */
 
 Toast {
-    background: #0D2B0D;
-    color: #8EFE55;
-    border: solid #8EFE55;
+    background: $surface;
+    color: $primary;
+    border: solid $primary;
 }

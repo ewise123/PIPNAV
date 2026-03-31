@@ -15,6 +15,17 @@ from pipnav.core.stats import make_bar
 class StatusBar(Widget):
     """Pip-Boy style status bar with HP, AP, and timestamp gauges."""
 
+    DEFAULT_CSS = """
+    StatusBar {
+        dock: bottom;
+        height: 1;
+        background: $surface;
+        color: $primary;
+        border-top: solid $secondary;
+        padding: 0 1;
+    }
+    """
+
     total_projects: reactive[int] = reactive(0)
     clean_projects: reactive[int] = reactive(0)
     active_sessions: reactive[int] = reactive(0)

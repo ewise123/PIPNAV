@@ -136,7 +136,7 @@ class PipNavApp(App):
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_note", "Note"),
         ("p", "cycle_color_scheme", "Color"),
-        ("f5", "refresh", "Refresh"),
+        ("f2", "refresh", "Refresh"),
         ("grave_accent", "toggle_crt", "CRT"),
         ("tilde", "toggle_crt", "CRT"),
         ("question_mark", "show_help", "Help"),

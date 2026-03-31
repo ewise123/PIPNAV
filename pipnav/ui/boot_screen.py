@@ -47,8 +47,8 @@ class BootScreen(Screen):
 
     DEFAULT_CSS = """
     BootScreen {
-        background: #0D2B0D;
-        color: #8EFE55;
+        background: $surface;
+        color: $primary;
     }
     BootScreen #boot-text {
         padding: 2 4;

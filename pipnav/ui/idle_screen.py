@@ -33,8 +33,8 @@ class IdleScreen(Screen):
 
     DEFAULT_CSS = """
     IdleScreen {
-        background: #0D2B0D;
-        color: #8EFE55;
+        background: $surface;
+        color: $primary;
         align: center middle;
     }
     IdleScreen #standby-text {

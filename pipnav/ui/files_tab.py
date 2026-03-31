@@ -37,22 +37,22 @@ class FilteredProjectTree(DirectoryTree):
         background-tint: initial;
     }
     FilteredProjectTree > .tree--guides {
-        color: #1A8033;
+        color: $secondary;
     }
     FilteredProjectTree > .tree--guides-hover {
-        color: #1A8033;
+        color: $secondary;
     }
     FilteredProjectTree > .tree--guides-selected {
-        color: #1A8033;
+        color: $secondary;
     }
     FilteredProjectTree:focus > .tree--guides {
-        color: #1A8033;
+        color: $secondary;
     }
     FilteredProjectTree:focus > .tree--guides-hover {
-        color: #1A8033;
+        color: $secondary;
     }
     FilteredProjectTree:focus > .tree--guides-selected {
-        color: #1A8033;
+        color: $secondary;
     }
     """
 

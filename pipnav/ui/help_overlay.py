@@ -27,7 +27,7 @@ HELP_TEXT = """\
   t                Cycle tag on selected project
   n                Edit note for selected project
   /                Fuzzy search projects
-  F5               Refresh all project metadata
+  F2               Refresh all project metadata
 
 [bold]Display[/]
   p                Cycle color scheme (green/amber/blue/white)
@@ -50,9 +50,9 @@ class HelpScreen(ModalScreen):
         width: 56;
         height: auto;
         max-height: 80%;
-        border: solid #8EFE55;
-        background: #0D2B0D;
-        color: #8EFE55;
+        border: solid $primary;
+        background: $surface;
+        color: $primary;
         padding: 1 2;
     }
     """

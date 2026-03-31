@@ -85,13 +85,14 @@ class ProjectList(Widget):
         option_list.clear_options()
         for entry in entries:
             badge = entry.badge
-            if entry.has_warning:
-                badge = f"[blink]{badge}[/blink]"
+            name = entry.name
+            # Pad name to fixed width before adding markup
+            padded_name = f"{name:<26}"
             if entry.is_stale:
-                name_text = f"[dim]{entry.name}[/dim]"
-            else:
-                name_text = entry.name
-            label = f"  {name_text:<26} {badge}"
+                padded_name = f"[dim]{padded_name}[/dim]"
+            if entry.has_warning:
+                badge = f"[bold]{badge}[/bold]"
+            label = f"  {padded_name} {badge}"
             option_list.add_option(Option(label, id=str(entry.path)))
 
         # Select first item if available
