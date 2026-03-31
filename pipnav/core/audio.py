@@ -99,9 +99,6 @@ def init_audio() -> None:
         pass
 
     _ps_process = _start_player()
-    # Wait for PowerShell to load the assembly and be ready
-    if _ps_process is not None:
-        time.sleep(1.0)
 
 
 def play_sound(name: str) -> None:
@@ -123,12 +120,34 @@ def play_sound(name: str) -> None:
         return
 
     win_file = f"{_win_sounds_path}\\{filename}"
+    _last_play_time = now
 
-    # Boot sound gets a longer debounce so it isn't cut off by navigate sounds
+    # Boot sound uses a separate one-off process so it doesn't get
+    # cut off by navigate sounds going through the persistent player
     if name == "boot":
         _last_play_time = now + BOOT_SOUND_GAP
-    else:
-        _last_play_time = now
+        ps = _get_powershell()
+        if ps:
+            def _play_boot() -> None:
+                try:
+                    cmd = (
+                        'Add-Type -AssemblyName presentationCore;'
+                        ' $p = New-Object System.Windows.Media.MediaPlayer;'
+                        f' $p.Open([Uri]"{win_file}");'
+                        ' $p.Play();'
+                        ' Start-Sleep -Milliseconds 5000'
+                    )
+                    subprocess.run([ps, "-NoProfile", "-WindowStyle", "Hidden", "-c", cmd], timeout=10)
+                except Exception:
+                    pass
+            threading.Thread(target=_play_boot, daemon=True).start()
+        return
+
+    if _ps_process is None or _ps_process.poll() is not None:
+        _ps_process = _start_player()
+
+    if _ps_process is None or _ps_process.stdin is None:
+        return
 
     try:
         _ps_process.stdin.write(win_file + "\n")
