@@ -400,10 +400,6 @@ class PipNavApp(App):
     def _apply_tab(self) -> None:
         """Apply the current tab selection to UI."""
         play_sound("select")
-
-        if self._config.crt_effects:
-            self._flash_static()
-
         self.query_one("#tab-content", ContentSwitcher).current = self._current_tab
         self.query_one("#header", PipNavHeader).active_tab = self._current_tab
 
