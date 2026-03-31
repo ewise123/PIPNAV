@@ -90,8 +90,6 @@ class ProjectList(Widget):
             padded_name = f"{name:<26}"
             if entry.is_stale:
                 padded_name = f"[dim]{padded_name}[/dim]"
-            if entry.has_warning:
-                badge = f"[bold]{badge}[/bold]"
             label = f"  {padded_name} {badge}"
             option_list.add_option(Option(label, id=str(entry.path)))
 
