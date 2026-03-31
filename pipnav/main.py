@@ -520,13 +520,20 @@ class PipNavApp(App):
     def action_toggle_sound(self) -> None:
         """Toggle sound effects on/off."""
         from pipnav.core import audio
-        audio_enabled = not getattr(audio, "_muted", False)
-        audio._muted = audio_enabled
-        if audio_enabled:
-            self.notify("Sound OFF")
-        else:
+        if audio._muted:
+            audio._muted = False
             play_sound("crt_on")
             self.notify("Sound ON")
+        else:
+            play_sound("crt_off")
+            # Small delay so the sound plays before mute kicks in
+            self.set_timer(0.3, self._mute_sound)
+            self.notify("Sound OFF")
+
+    def _mute_sound(self) -> None:
+        """Mute sound after a short delay."""
+        from pipnav.core import audio
+        audio._muted = True
 
     # --- Help ---
 
