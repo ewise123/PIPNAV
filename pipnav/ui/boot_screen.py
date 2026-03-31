@@ -1,49 +1,41 @@
-"""Boot screen — VAULT-TEC INDUSTRIES terminal boot animation."""
-
-import random
+"""Boot screen — VAULT-TEC INDUSTRIES terminal boot with typewriter effect."""
 
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static
 
-BOOT_STAGES = (
-    # (text, delay_seconds)
-    ("", 0.15),
-    ("VAULT-TEC INDUSTRIES (TM)", 0.08),
-    ("ROBCO UNIFIED OPERATING SYSTEM V.85", 0.08),
-    ("COPYRIGHT 2075-2077 ROBCO INDUSTRIES", 0.08),
-    ("", 0.15),
-    ("INITIALIZING SYSTEM...", 0.3),
-    ("", 0.1),
-    ("MEMORY TEST:  ", 0.05),  # Will be replaced with counting
-    ("64K RAM SYSTEM  [OK]", 0.1),
-    ("HOLOTAPE DRIVE  [OK]", 0.1),
-    ("RADIO MODULE    [OK]", 0.1),
-    ("V.A.T.S. CORE   [OK]", 0.1),
-    ("", 0.15),
-    ("LOADING PIPNAV NAVIGATION SYSTEM...", 0.2),
-    ("", 0.1),
-    (">>> AUTHENTICATING USER...", 0.25),
-    (">>> ACCESS GRANTED", 0.15),
-    ("", 0.1),
-    ("WELCOME, VAULT DWELLER", 0.3),
-    ("", 0.2),
+BOOT_LINES = (
+    "",
+    "VAULT-TEC INDUSTRIES (TM)",
+    "ROBCO UNIFIED OPERATING SYSTEM V.85",
+    "COPYRIGHT 2075-2077 ROBCO INDUSTRIES",
+    "",
+    "INITIALIZING SYSTEM...",
+    "",
+    "64K RAM SYSTEM  [OK]",
+    "HOLOTAPE DRIVE  [OK]",
+    "RADIO MODULE    [OK]",
+    "V.A.T.S. CORE   [OK]",
+    "",
+    "LOADING PIPNAV NAVIGATION SYSTEM...",
+    "",
+    ">>> AUTHENTICATING USER...",
+    ">>> ACCESS GRANTED",
+    "",
+    "WELCOME, VAULT DWELLER",
 )
 
-HEX_CHARS = "0123456789ABCDEF"
-
-
-def _random_hex_line() -> str:
-    """Generate a fake hex dump line."""
-    addr = random.randint(0x1000, 0xFFFF)
-    values = " ".join(
-        f"{random.randint(0, 255):02X}" for _ in range(8)
-    )
-    return f"0x{addr:04X}  {values}"
+# Chars per second for typewriter effect
+CHARS_PER_SECOND = 60
+CHAR_INTERVAL = 1.0 / CHARS_PER_SECOND
+# Pause after each line completes (seconds)
+LINE_PAUSE = 0.08
+# Longer pause after blank lines
+BLANK_PAUSE = 0.15
 
 
 class BootScreen(Screen):
-    """Animated boot sequence — skippable with any key."""
+    """Animated boot sequence with typewriter effect — skippable with any key."""
 
     DEFAULT_CSS = """
     BootScreen {
@@ -58,79 +50,92 @@ class BootScreen(Screen):
 
     def __init__(self) -> None:
         super().__init__()
-        self._stage_index = 0
+        self._line_index = 0
+        self._char_index = 0
+        self._completed_text = ""
+        self._current_line = ""
         self._timer_handle: object | None = None
-        self._current_text = ""
-        self._mem_count = 0
+        self._skipped = False
 
     def compose(self) -> ComposeResult:
         yield Static("", id="boot-text")
 
     def on_mount(self) -> None:
-        """Start the boot animation."""
-        self._advance_stage()
+        """Start the typewriter animation."""
+        self._start_next_line()
 
-    def _advance_stage(self) -> None:
-        """Process the next boot stage."""
-        if self._stage_index >= len(BOOT_STAGES):
+    def _start_next_line(self) -> None:
+        """Begin typing the next line."""
+        if self._skipped:
+            return
+        if self._line_index >= len(BOOT_LINES):
             self.set_timer(0.3, self._finish)
             return
 
-        text, delay = BOOT_STAGES[self._stage_index]
+        self._current_line = BOOT_LINES[self._line_index]
+        self._char_index = 0
 
-        # Special handling for memory test line
-        if text == "MEMORY TEST:  ":
-            self._current_text += "\n" + text
-            self._mem_count = 0
-            self._timer_handle = self.set_interval(0.02, self._count_memory)
+        if not self._current_line:
+            # Blank line — just append and pause
+            self._completed_text += "\n"
+            self._update_display()
+            self._line_index += 1
+            self._timer_handle = self.set_timer(
+                BLANK_PAUSE, self._start_next_line
+            )
+        else:
+            # Start typing characters
+            self._timer_handle = self.set_interval(
+                CHAR_INTERVAL, self._type_char
+            )
+
+    def _type_char(self) -> None:
+        """Type the next character of the current line."""
+        if self._skipped:
             return
-
-        self._current_text += "\n" + text
-        self._update_display()
-        self._stage_index += 1
-        self._timer_handle = self.set_timer(delay, self._advance_stage)
-
-    def _count_memory(self) -> None:
-        """Animate the memory test counter."""
-        self._mem_count += 4
-        if self._mem_count >= 64:
+        if self._char_index >= len(self._current_line):
+            # Line complete
             if self._timer_handle is not None:
                 self._timer_handle.stop()  # type: ignore[union-attr]
-            # Replace the memory test line with the final count
-            lines = self._current_text.split("\n")
-            lines[-1] = "MEMORY TEST:  64K OK"
-            self._current_text = "\n".join(lines)
+            self._completed_text += "\n" + self._current_line
             self._update_display()
-            self._stage_index += 1
-            self._timer_handle = self.set_timer(0.15, self._advance_stage)
-        else:
-            lines = self._current_text.split("\n")
-            lines[-1] = f"MEMORY TEST:  {self._mem_count}K"
-            self._current_text = "\n".join(lines)
-            self._update_display()
+            self._line_index += 1
+            self._timer_handle = self.set_timer(
+                LINE_PAUSE, self._start_next_line
+            )
+            return
 
-    def _update_display(self) -> None:
+        self._char_index += 1
+        # Show completed lines + partially typed current line
+        partial = self._current_line[: self._char_index]
+        display = self._completed_text + "\n" + partial + "█"
+        self._update_display(display)
+
+    def _update_display(self, text: str | None = None) -> None:
         """Update the boot text widget."""
         try:
-            self.query_one("#boot-text", Static).update(self._current_text)
+            content = text if text is not None else self._completed_text
+            self.query_one("#boot-text", Static).update(content)
         except Exception:
             pass
 
     def _finish(self) -> None:
         """Dismiss the boot screen."""
-        if self._timer_handle is not None:
-            try:
-                self._timer_handle.stop()  # type: ignore[union-attr]
-            except Exception:
-                pass
+        self._stop_timer()
         if self.is_current:
             self.dismiss()
 
-    def on_key(self, event: object) -> None:
-        """Skip boot animation on any key press."""
+    def _stop_timer(self) -> None:
+        """Stop any running timer."""
         if self._timer_handle is not None:
             try:
                 self._timer_handle.stop()  # type: ignore[union-attr]
             except Exception:
                 pass
+            self._timer_handle = None
+
+    def on_key(self, event: object) -> None:
+        """Skip boot animation on any key press."""
+        self._skipped = True
+        self._stop_timer()
         self._finish()

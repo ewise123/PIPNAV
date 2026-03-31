@@ -16,7 +16,7 @@ class StatusBar(Static):
     DEFAULT_CSS = """
     StatusBar {
         dock: bottom;
-        height: 1;
+        height: 2;
         background: $surface;
         color: $primary;
         border-top: solid $secondary;
