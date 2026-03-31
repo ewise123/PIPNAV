@@ -25,6 +25,7 @@ _powershell: str | None = None
 _win_sounds_path: str = ""
 _last_play_time: float = 0
 MIN_SOUND_GAP = 0.15
+BOOT_SOUND_GAP = 4.0  # Boot sound needs longer protection from being overridden
 
 # Persistent PowerShell player process
 _ps_process: subprocess.Popen | None = None
@@ -110,7 +111,6 @@ def play_sound(name: str) -> None:
     now = time.monotonic()
     if now - _last_play_time < MIN_SOUND_GAP:
         return
-    _last_play_time = now
 
     filename = SOUND_FILES.get(name)
     if not filename or not _win_sounds_path:
@@ -123,6 +123,12 @@ def play_sound(name: str) -> None:
         return
 
     win_file = f"{_win_sounds_path}\\{filename}"
+
+    # Boot sound gets a longer debounce so it isn't cut off by navigate sounds
+    if name == "boot":
+        _last_play_time = now + BOOT_SOUND_GAP
+    else:
+        _last_play_time = now
 
     try:
         _ps_process.stdin.write(win_file + "\n")
