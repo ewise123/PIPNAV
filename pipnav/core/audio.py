@@ -2,23 +2,24 @@
 
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
 from pipnav.core.logging import get_logger
 
 SOUNDS_DIR = Path(__file__).parent.parent / "sounds"
+# Copy sounds to Windows-accessible path (UNC paths don't work for audio)
+WIN_SOUNDS_DIR = Path("/mnt/c/Users") / Path.home().name / ".pipnav" / "sounds"
 
 # Map sound names to files — add more as needed
 SOUND_FILES: dict[str, str] = {
     "select": "pipboy-select.mp3",
 }
 
-# Cache of WSL -> Windows path conversions
-_win_paths: dict[str, str] = {}
 _powershell: str | None = None
+_win_sounds_path: str = ""
 _last_play_time: float = 0
-# Minimum gap between sounds in seconds (prevents spam on rapid scrolling)
 MIN_SOUND_GAP = 0.15
 
 
@@ -30,34 +31,39 @@ def _get_powershell() -> str | None:
     return _powershell if _powershell else None
 
 
-def _get_win_path(posix_path: Path) -> str | None:
-    """Convert a WSL path to a Windows path. Cached."""
-    key = str(posix_path)
-    if key not in _win_paths:
-        try:
-            result = subprocess.run(
-                ["wslpath", "-w", key],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                _win_paths[key] = result.stdout.strip()
-            else:
-                return None
-        except Exception:
-            return None
-    return _win_paths.get(key)
-
-
 def init_audio() -> None:
-    """Pre-cache Windows paths for all sound files at startup."""
-    for filename in SOUND_FILES.values():
-        sound_path = SOUNDS_DIR / filename
-        if sound_path.exists():
-            _get_win_path(sound_path)
-    # Also cache powershell location
+    """Copy sound files to Windows-accessible path and cache locations."""
+    global _win_sounds_path
+    logger = get_logger()
+
     _get_powershell()
+
+    # Create Windows-side sounds directory
+    WIN_SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Copy all sound files to Windows path
+    for filename in SOUND_FILES.values():
+        src = SOUNDS_DIR / filename
+        dst = WIN_SOUNDS_DIR / filename
+        if src.exists() and (not dst.exists() or src.stat().st_size != dst.stat().st_size):
+            try:
+                shutil.copy2(src, dst)
+                logger.debug("Copied sound: %s -> %s", src, dst)
+            except OSError as exc:
+                logger.debug("Failed to copy sound %s: %s", filename, exc)
+
+    # Get the Windows path for the sounds directory
+    try:
+        result = subprocess.run(
+            ["wslpath", "-w", str(WIN_SOUNDS_DIR)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            _win_sounds_path = result.stdout.strip()
+    except Exception:
+        pass
 
 
 def play_sound(name: str) -> None:
@@ -65,41 +71,32 @@ def play_sound(name: str) -> None:
     global _last_play_time
     logger = get_logger()
 
-    # Debounce — skip if too soon after last sound
     now = time.monotonic()
     if now - _last_play_time < MIN_SOUND_GAP:
         return
     _last_play_time = now
 
     filename = SOUND_FILES.get(name)
-    if not filename:
-        return
-
-    sound_path = SOUNDS_DIR / filename
-    if not sound_path.exists():
-        logger.debug("Sound file not found: %s", sound_path)
+    if not filename or not _win_sounds_path:
         return
 
     ps = _get_powershell()
     if not ps:
         return
 
-    win_path = _get_win_path(sound_path)
-    if not win_path:
-        return
+    win_file = f"{_win_sounds_path}\\{filename}"
 
-    try:
-        cmd = (
-            "Add-Type -AssemblyName presentationCore;"
-            " $p = New-Object System.Windows.Media.MediaPlayer;"
-            f" $p.Open([Uri]'{win_path}');"
-            " $p.Play();"
-            " Start-Sleep -Milliseconds 500"
-        )
-        subprocess.Popen(
-            [ps, "-c", cmd],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception as exc:
-        logger.debug("Failed to play sound %s: %s", name, exc)
+    def _play() -> None:
+        try:
+            cmd = (
+                'Add-Type -AssemblyName presentationCore;'
+                ' $p = New-Object System.Windows.Media.MediaPlayer;'
+                f' $p.Open([Uri]"{win_file}");'
+                ' $p.Play();'
+                ' Start-Sleep -Milliseconds 3000'
+            )
+            subprocess.run([ps, "-c", cmd], timeout=5)
+        except Exception as exc:
+            logger.debug("Failed to play sound %s: %s", name, exc)
+
+    threading.Thread(target=_play, daemon=True).start()
