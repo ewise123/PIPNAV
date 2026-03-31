@@ -201,6 +201,7 @@ class PipNavApp(App):
 
         if self._config.crt_effects:
             self._enable_crt()
+            play_sound("boot")
             self.push_screen(BootScreen())
 
         self.query_one("#project-list", ProjectList).focus_list()
@@ -399,7 +400,7 @@ class PipNavApp(App):
 
     def _apply_tab(self) -> None:
         """Apply the current tab selection to UI."""
-        play_sound("select")
+        play_sound("navigate")
         self.query_one("#tab-content", ContentSwitcher).current = self._current_tab
         self.query_one("#header", PipNavHeader).active_tab = self._current_tab
 
@@ -414,6 +415,7 @@ class PipNavApp(App):
         """Open selected project in VS Code."""
         path = self._selected_project_path()
         if path:
+            play_sound("launch")
             ok, err = launch_vscode(path, self._config.vscode_command)
             if not ok:
                 self.notify(err, severity="error")
@@ -424,6 +426,7 @@ class PipNavApp(App):
         """Launch Claude Code on selected project."""
         path = self._selected_project_path()
         if path:
+            play_sound("launch")
             ok, err = launch_claude(path, self._config.claude_command)
             if ok:
                 self._sessions = record_session(path, resumable=True)
@@ -435,6 +438,7 @@ class PipNavApp(App):
         """Resume Claude Code session on selected project."""
         path = self._selected_project_path()
         if path:
+            play_sound("launch")
             ok, err = launch_claude(
                 path, self._config.claude_command, resume=True
             )
@@ -518,9 +522,11 @@ class PipNavApp(App):
         new_value = not self._config.crt_effects
         self._config = update_config(self._config, crt_effects=new_value)
         if new_value:
+            play_sound("crt_on")
             self._enable_crt()
             self.notify("CRT effects ON")
         else:
+            play_sound("crt_off")
             self._disable_crt()
             self.notify("CRT effects OFF")
 

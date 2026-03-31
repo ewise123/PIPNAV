@@ -13,7 +13,11 @@ WIN_SOUNDS_DIR = Path("/mnt/c/Users") / Path.home().name / ".pipnav" / "sounds"
 PLAYER_SCRIPT = SOUNDS_DIR / "player.ps1"
 
 SOUND_FILES: dict[str, str] = {
-    "select": "pipboy-select.mp3",
+    "boot": "UI_PipBoy_BootSequence_A.mp3",
+    "navigate": "UI_PipBoy_Favorite_Menu_Dpad_B.mp3",
+    "crt_on": "UI_PipBoy_LightOn.mp3",
+    "crt_off": "UI_PipBoy_LightOff.mp3",
+    "launch": "UI_Pipboy_OK.mp3",
 }
 
 _powershell: str | None = None
