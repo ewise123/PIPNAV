@@ -13,7 +13,7 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DirectoryTree, Input, Static
 
-from pipnav.core.audio import play_sound
+from pipnav.core.audio import init_audio, play_sound
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
@@ -184,6 +184,7 @@ class PipNavApp(App):
     def on_mount(self) -> None:
         """Initialize the app — load config, discover projects."""
         setup_logging()
+        init_audio()
         self._config = load_config()
         self._sessions = load_sessions()
         self._notes = load_notes()
