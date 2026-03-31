@@ -27,7 +27,7 @@ HELP_TEXT = """\
   t                Cycle tag on selected project
   n                Edit note for selected project
   /                Fuzzy search projects
-  F2               Refresh all project metadata
+  .                Refresh all project metadata
 
 [bold]Display[/]
   p                Cycle color scheme (green/amber/blue/white)

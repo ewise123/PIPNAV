@@ -4,32 +4,40 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Static
 
+# Hand-crafted ASCII test pattern inspired by Fallout's "Please Stand By"
+# Uses box-drawing, circles approximated with Unicode, and geometric shapes
 STANDBY_ART = """\
 
 
-
-
-              ╔══════════════════════════════════════╗
-              ║                                      ║
-              ║                                      ║
-              ║         P L E A S E                   ║
-              ║                                      ║
-              ║       S T A N D   B Y                 ║
-              ║                                      ║
-              ║                                      ║
-              ║      ╔════════════════════╗           ║
-              ║      ║  VAULT-TEC CORP.   ║           ║
-              ║      ╚════════════════════╝           ║
-              ║                                      ║
-              ╚══════════════════════════════════════╝
-
-
+                    ╔══════════════════════════════════════════════╗
+                    ║          .  .       |       .  .             ║
+                    ║      .              |              .         ║
+                    ║    .       ╱‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾╲       .       ║
+                    ║   .      ╱    .     |     .    ╲      .      ║
+                    ║         ╱          ╔╗          ╲             ║
+                    ║  .     │      .────╫╫────.      │     .     ║
+                    ║  ──────┼───────────╫╫───────────┼──────     ║
+                    ║  .     │      .────╫╫────.      │     .     ║
+                    ║         ╲          ╚╝          ╱             ║
+                    ║   .      ╲    .     |     .    ╱      .      ║
+                    ║    .       ╲_______________╱       .       ║
+                    ║      .              |              .         ║
+                    ║          .  .       |       .  .             ║
+                    ║                                              ║
+                    ║        ╔══════════════════════════╗          ║
+                    ║        ║   PLEASE   STAND   BY    ║          ║
+                    ║        ╚══════════════════════════╝          ║
+                    ║                                              ║
+                    ║           ╔════════════════════╗             ║
+                    ║           ║  VAULT-TEC  CORP.  ║             ║
+                    ║           ╚════════════════════╝             ║
+                    ╚══════════════════════════════════════════════╝
 
 """
 
 
 class IdleScreen(Screen):
-    """Displayed after period of inactivity. Dismiss on any key."""
+    """Displayed after period of inactivity. Dismiss on any key or click."""
 
     DEFAULT_CSS = """
     IdleScreen {
@@ -50,4 +58,8 @@ class IdleScreen(Screen):
 
     def on_key(self, event: object) -> None:
         """Dismiss on any key press."""
+        self.dismiss()
+
+    def on_click(self, event: object) -> None:
+        """Dismiss on click."""
         self.dismiss()

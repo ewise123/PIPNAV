@@ -136,7 +136,7 @@ class PipNavApp(App):
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_note", "Note"),
         ("p", "cycle_color_scheme", "Color"),
-        ("f2", "refresh", "Refresh"),
+        ("full_stop", "refresh", "Refresh"),
         ("grave_accent", "toggle_crt", "CRT"),
         ("tilde", "toggle_crt", "CRT"),
         ("question_mark", "show_help", "Help"),
@@ -408,8 +408,8 @@ class PipNavApp(App):
 
     def _flash_static(self) -> None:
         """Brief static flash when switching tabs (CRT effect)."""
-        self.add_class("crt-static")
-        self.set_timer(0.08, lambda: self.remove_class("crt-static"))
+        self.screen.add_class("crt-static")
+        self.set_timer(0.08, lambda: self.screen.remove_class("crt-static"))
 
     # --- Launchers ---
 
@@ -529,14 +529,14 @@ class PipNavApp(App):
 
     def _enable_crt(self) -> None:
         """Start CRT flicker — alternate between bright and dim."""
-        self.add_class("crt-on")
+        self.screen.add_class("crt-on")
         self._crt_timer = self.set_interval(0.15, self._crt_flicker)
         self._crt_bright = True
 
     def _disable_crt(self) -> None:
         """Stop CRT flicker and restore normal colors."""
-        self.remove_class("crt-on")
-        self.remove_class("crt-dim")
+        self.screen.remove_class("crt-on")
+        self.screen.remove_class("crt-dim")
         if self._crt_timer is not None:
             self._crt_timer.stop()  # type: ignore[union-attr]
             self._crt_timer = None
@@ -545,9 +545,9 @@ class PipNavApp(App):
         """Toggle between bright and dim states for CRT flicker."""
         self._crt_bright = not self._crt_bright
         if self._crt_bright:
-            self.remove_class("crt-dim")
+            self.screen.remove_class("crt-dim")
         else:
-            self.add_class("crt-dim")
+            self.screen.add_class("crt-dim")
 
     # --- Help ---
 

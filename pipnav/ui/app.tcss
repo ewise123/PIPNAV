@@ -275,6 +275,10 @@ Screen.crt-dim {
     opacity: 0.7;
 }
 
+Screen.crt-on {
+    /* marker class — no visual change, just indicates CRT is active */
+}
+
 Screen.crt-static {
     opacity: 0.3;
 }
