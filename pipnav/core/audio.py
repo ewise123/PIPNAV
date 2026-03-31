@@ -1,5 +1,6 @@
 """Audio playback — play Pip-Boy sound effects via PowerShell MediaPlayer."""
 
+import os
 import shutil
 import subprocess
 import threading
@@ -88,6 +89,9 @@ def play_sound(name: str) -> None:
 
     def _play() -> None:
         try:
+            # Use -WindowStyle Hidden to prevent PowerShell window flash
+            # Redirect stdout/stderr to NUL on the Windows side (not Python side,
+            # which kills audio handles)
             cmd = (
                 'Add-Type -AssemblyName presentationCore;'
                 ' $p = New-Object System.Windows.Media.MediaPlayer;'
@@ -95,7 +99,13 @@ def play_sound(name: str) -> None:
                 ' $p.Play();'
                 ' Start-Sleep -Milliseconds 3000'
             )
-            subprocess.run([ps, "-c", cmd], timeout=5)
+            subprocess.run(
+                [ps, "-WindowStyle", "Hidden", "-NoProfile", "-c", cmd],
+                stdout=open(os.devnull, "w"),
+                stderr=open(os.devnull, "w"),
+                stdin=subprocess.DEVNULL,
+                timeout=5,
+            )
         except Exception as exc:
             logger.debug("Failed to play sound %s: %s", name, exc)
 
