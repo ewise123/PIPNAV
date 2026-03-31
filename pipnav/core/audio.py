@@ -14,6 +14,7 @@ PLAYER_SCRIPT = SOUNDS_DIR / "player.ps1"
 
 SOUND_FILES: dict[str, str] = {
     "boot": "UI_PipBoy_BootSequence_A.mp3",
+    "tab": "pipboy-select.mp3",
     "navigate": "UI_PipBoy_Favorite_Menu_Dpad_B.mp3",
     "crt_on": "UI_PipBoy_LightOn.mp3",
     "crt_off": "UI_PipBoy_LightOff.mp3",

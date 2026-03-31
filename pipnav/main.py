@@ -366,6 +366,7 @@ class PipNavApp(App):
     @on(ProjectList.Selected)
     def _on_project_selected(self, event: ProjectList.Selected) -> None:
         """Update detail panel and tabs when a project is selected."""
+        play_sound("navigate")
         path = event.path
         name = event.name
 
@@ -405,7 +406,7 @@ class PipNavApp(App):
 
     def _apply_tab(self) -> None:
         """Apply the current tab selection to UI."""
-        play_sound("navigate")
+        play_sound("tab")
         self.query_one("#tab-content", ContentSwitcher).current = self._current_tab
         self.query_one("#header", PipNavHeader).active_tab = self._current_tab
 
