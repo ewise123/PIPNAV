@@ -7,8 +7,8 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult
 from textual.color import Color
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
-from textual.widget import Widget
 from textual.widgets import Sparkline, Static
 
 from pipnav.core.git import GitStatus, get_commit_frequency
@@ -17,7 +17,7 @@ from pipnav.core.sessions import SessionInfo
 from pipnav.core.utils import time_ago
 
 
-class ProjectDetail(Widget):
+class ProjectDetail(VerticalScroll):
     """Detail panel showing metadata for the selected project."""
 
     project_path: reactive[Path | None] = reactive(None)
