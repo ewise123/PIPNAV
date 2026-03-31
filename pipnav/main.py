@@ -162,8 +162,6 @@ class PipNavApp(App):
         self._notes: dict[str, ProjectNotes] = {}
         self._current_tab: str = "STAT"
         self._editing_note: bool = False
-        self._crt_timer: object | None = None
-        self._crt_bright: bool = True
         self._nav_stack: list[tuple[str, ...]] = []
         self._current_roots: tuple[str, ...] = ()
         self._idle_timer: object | None = None
@@ -528,26 +526,12 @@ class PipNavApp(App):
             self.notify("CRT effects OFF")
 
     def _enable_crt(self) -> None:
-        """Start CRT flicker — alternate between bright and dim."""
+        """Enable CRT mode — currently just enables tab switch static effect."""
         self.screen.add_class("crt-on")
-        self._crt_timer = self.set_interval(0.15, self._crt_flicker)
-        self._crt_bright = True
 
     def _disable_crt(self) -> None:
-        """Stop CRT flicker and restore normal colors."""
+        """Disable CRT mode."""
         self.screen.remove_class("crt-on")
-        self.screen.remove_class("crt-dim")
-        if self._crt_timer is not None:
-            self._crt_timer.stop()  # type: ignore[union-attr]
-            self._crt_timer = None
-
-    def _crt_flicker(self) -> None:
-        """Toggle between bright and dim states for CRT flicker."""
-        self._crt_bright = not self._crt_bright
-        if self._crt_bright:
-            self.screen.remove_class("crt-dim")
-        else:
-            self.screen.add_class("crt-dim")
 
     # --- Help ---
 
