@@ -229,6 +229,7 @@ class ProjectIndexer:
         self._roots = roots
         self._ttl_seconds = ttl_seconds
         self._cache: IndexCache | None = None
+        self._last_refreshed: datetime | None = None
 
     @property
     def cache(self) -> IndexCache | None:
@@ -256,6 +257,7 @@ class ProjectIndexer:
         else:
             self._cache = full_scan(self._roots)
 
+        self._last_refreshed = datetime.now()
         save_cache(self._cache)
         return self._cache
 
@@ -298,7 +300,5 @@ class ProjectIndexer:
         }
 
     def last_scan_time(self) -> datetime | None:
-        """Return when the last full scan happened."""
-        if self._cache is None:
-            return None
-        return self._cache.last_full_scan
+        """Return when the index was last refreshed (full or incremental)."""
+        return self._last_refreshed

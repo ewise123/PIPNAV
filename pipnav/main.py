@@ -37,6 +37,7 @@ from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.session_center_tab import SessionCenterTab
 from pipnav.ui.sessions_tab import SessionsTab
 from pipnav.ui.status_bar import StatusBar
 
@@ -135,7 +136,8 @@ class PipNavApp(App):
         ("2", "show_tab('FILES')", "FILES"),
         ("3", "show_tab('LOG')", "LOG"),
         ("4", "show_tab('SESSIONS')", "SESSIONS"),
-        ("5", "show_tab('INV')", "INV"),
+        ("5", "show_tab('CONSOLE')", "CONSOLE"),
+        ("6", "show_tab('INV')", "INV"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_note", "Note"),
         ("p", "cycle_color_scheme", "Color"),
@@ -143,13 +145,15 @@ class PipNavApp(App):
         ("grave_accent", "toggle_sound", "Sound"),
         ("tilde", "toggle_sound", "Sound"),
         ("question_mark", "show_help", "Help"),
+        ("f", "session_filter", "Filter"),
+        ("o", "session_sort", "Sort"),
     ]
 
     _CHAR_ACTIONS = frozenset({
         "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
         "open_vscode", "open_claude", "resume_claude", "start_search",
         "cycle_tag", "edit_note", "toggle_sound", "show_help",
-        "cycle_color_scheme",
+        "cycle_color_scheme", "session_filter", "session_sort",
     })
 
     def __init__(self) -> None:
@@ -170,6 +174,7 @@ class PipNavApp(App):
         self._idle_timer: object | None = None
         self._indexer: ProjectIndexer | None = None
         self._watcher: FileWatcher | None = None
+        self._watcher_triggered: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -181,6 +186,7 @@ class PipNavApp(App):
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
                 yield SessionsTab(id="SESSIONS")
+                yield SessionCenterTab(id="CONSOLE")
                 yield InventoryTab(id="INV")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield StatusBar(id="status-bar")
@@ -293,7 +299,12 @@ class PipNavApp(App):
         self.call_from_thread(self._trigger_background_refresh)
 
     def _trigger_background_refresh(self) -> None:
-        """Trigger a background refresh from the main thread."""
+        """Trigger a background refresh from the main thread.
+
+        Skips session center rebuild to avoid flashing and cursor loss
+        when the user is browsing sessions.
+        """
+        self._watcher_triggered = True
         self._load_projects()
         # Update freshness display
         try:
@@ -314,6 +325,10 @@ class PipNavApp(App):
         self._rebuild_list(projects)
         self._update_status_bar()
         self._update_inventory()
+        # Only refresh session center on manual/initial load, not watcher ticks
+        if not self._watcher_triggered:
+            self._update_session_center()
+        self._watcher_triggered = False
         # Update freshness indicator
         try:
             self.query_one("#status-bar", StatusBar).update_freshness(
@@ -363,6 +378,15 @@ class PipNavApp(App):
             )
             self.query_one("#INV", InventoryTab).update_inventory(
                 projects, self._git_statuses
+            )
+        except Exception:
+            pass
+
+    def _update_session_center(self) -> None:
+        """Update the CONSOLE tab with all sessions."""
+        try:
+            self.query_one("#CONSOLE", SessionCenterTab).load_sessions(
+                self._all_projects
             )
         except Exception:
             pass
@@ -452,7 +476,7 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG", "SESSIONS", "INV")
+        tabs = ("STAT", "FILES", "LOG", "SESSIONS", "CONSOLE", "INV")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
@@ -625,6 +649,8 @@ class PipNavApp(App):
                 self.query_one("#LOG").focus()
             elif tab == "SESSIONS":
                 self.query_one("#session-options").focus()
+            elif tab == "CONSOLE":
+                self.query_one("#session-center-table").focus()
             elif tab == "INV":
                 self.query_one("#inv-table").focus()
         except Exception:
@@ -675,7 +701,7 @@ class PipNavApp(App):
 
     @on(SessionsTab.SessionActivated)
     def _on_session_activated(self, event: SessionsTab.SessionActivated) -> None:
-        """Resume a specific Claude Code session in a new terminal tab."""
+        """Resume a specific Claude Code session from per-project SESSIONS tab."""
         ok, err = launch_claude(
             event.project_path,
             self._config.claude_command,
@@ -685,6 +711,33 @@ class PipNavApp(App):
             self.notify("Resuming Claude session...")
         else:
             self.notify(err, severity="error")
+
+    @on(SessionCenterTab.SessionActivated)
+    def _on_center_session_activated(
+        self, event: SessionCenterTab.SessionActivated
+    ) -> None:
+        """Resume a session from the Session Control Center."""
+        play_sound("launch")
+        ok, err = launch_claude(
+            event.project_path,
+            self._config.claude_command,
+            session_id=event.session_id,
+        )
+        if ok:
+            self._sessions = record_session(event.project_path, resumable=True)
+            self.notify(f"Resuming session in {event.project_path.name}...")
+        else:
+            self.notify(err, severity="error")
+
+    def action_session_filter(self) -> None:
+        """Cycle session center filter (only when CONSOLE tab is active)."""
+        if self._current_tab == "CONSOLE":
+            self.query_one("#CONSOLE", SessionCenterTab).cycle_filter()
+
+    def action_session_sort(self) -> None:
+        """Cycle session center sort (only when CONSOLE tab is active)."""
+        if self._current_tab == "CONSOLE":
+            self.query_one("#CONSOLE", SessionCenterTab).cycle_sort()
 
     # --- File tree integration ---
 
