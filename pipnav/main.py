@@ -13,10 +13,11 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, OptionList, Static
 
-from pipnav.core.audio import init_audio, play_sound
+from pipnav.core.audio import init_audio, play_sound, shutdown_audio
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
+from pipnav.core.indexer import ProjectIndexer
 from pipnav.core.launcher import launch_claude, launch_vscode
 from pipnav.core.logging import setup_logging
 from pipnav.core.notes import ProjectNotes, cycle_tag, load_notes, set_note
@@ -25,6 +26,7 @@ from pipnav.core.search import filter_projects
 from pipnav.core.sessions import SessionInfo, load_sessions, record_session
 from pipnav.core.stats import compute_aggregate_stats
 from pipnav.core.utils import read_readme_preview
+from pipnav.core.watcher import FileWatcher
 from pipnav.ui.boot_screen import BootScreen
 from pipnav.ui.files_tab import FilesTab
 from pipnav.ui.header import PipNavHeader
@@ -166,6 +168,8 @@ class PipNavApp(App):
         self._nav_stack: list[tuple[str, ...]] = []
         self._current_roots: tuple[str, ...] = ()
         self._idle_timer: object | None = None
+        self._indexer: ProjectIndexer | None = None
+        self._watcher: FileWatcher | None = None
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -203,9 +207,35 @@ class PipNavApp(App):
         # Always show boot screen
         self.push_screen(BootScreen())
 
+        # Initialize indexer with warm-start from cache
+        self._indexer = ProjectIndexer(
+            roots=self._current_roots,
+            ttl_seconds=self._config.cache_ttl_seconds,
+        )
+        cached = self._indexer.warm_start()
+        if cached is not None:
+            # Use cached data for instant startup
+            projects = self._indexer.get_projects()
+            statuses = self._indexer.get_git_statuses()
+            self._update_project_list(projects, statuses)
+
+        # Start file watcher for live updates
+        self._watcher = FileWatcher(
+            roots=self._current_roots,
+            interval_seconds=self._config.poll_interval_seconds,
+            on_change=self._on_watcher_change,
+        )
+        self._watcher.start()
+
         self.query_one("#project-list", ProjectList).focus_list()
         self._load_projects()
         self._reset_idle_timer()
+
+    def on_unmount(self) -> None:
+        """Clean up the persistent audio helper and watcher on app shutdown."""
+        if self._watcher is not None:
+            self._watcher.stop()
+        shutdown_audio()
 
     # --- Key handling ---
 
@@ -239,17 +269,39 @@ class PipNavApp(App):
 
     @work(exclusive=True, thread=True)
     def _load_projects(self) -> None:
-        """Discover projects and fetch git status in background."""
-        projects = discover_projects(self._current_roots)
-        statuses: dict[str, GitStatus | None] = {}
-
-        for project in projects:
-            if project.is_git_repo:
-                statuses[str(project.path)] = get_git_status(project.path)
-            else:
-                statuses[str(project.path)] = None
+        """Discover projects and fetch git status in background via indexer."""
+        if self._indexer is not None:
+            # Update indexer roots in case they changed (drill-down)
+            self._indexer.roots = self._current_roots
+            self._indexer.refresh()
+            projects = self._indexer.get_projects()
+            statuses = self._indexer.get_git_statuses()
+        else:
+            # Fallback if indexer not initialized
+            projects = discover_projects(self._current_roots)
+            statuses = {}
+            for project in projects:
+                if project.is_git_repo:
+                    statuses[str(project.path)] = get_git_status(project.path)
+                else:
+                    statuses[str(project.path)] = None
 
         self.call_from_thread(self._update_project_list, projects, statuses)
+
+    def _on_watcher_change(self) -> None:
+        """Called from watcher thread when filesystem changes are detected."""
+        self.call_from_thread(self._trigger_background_refresh)
+
+    def _trigger_background_refresh(self) -> None:
+        """Trigger a background refresh from the main thread."""
+        self._load_projects()
+        # Update freshness display
+        try:
+            self.query_one("#status-bar", StatusBar).update_freshness(
+                self._indexer.last_scan_time() if self._indexer else None
+            )
+        except Exception:
+            pass
 
     def _update_project_list(
         self,
@@ -262,6 +314,13 @@ class PipNavApp(App):
         self._rebuild_list(projects)
         self._update_status_bar()
         self._update_inventory()
+        # Update freshness indicator
+        try:
+            self.query_one("#status-bar", StatusBar).update_freshness(
+                self._indexer.last_scan_time() if self._indexer else None
+            )
+        except Exception:
+            pass
 
     def _rebuild_list(self, projects: tuple[ProjectInfo, ...]) -> None:
         """Rebuild the OptionList with the given projects."""
@@ -334,6 +393,10 @@ class PipNavApp(App):
 
         self._nav_stack.append(self._current_roots)
         self._current_roots = (str(path),)
+        if self._watcher is not None:
+            self._watcher.roots = self._current_roots
+        if self._indexer is not None:
+            self._indexer.invalidate()
         self._load_projects()
         self._update_title()
 
@@ -344,6 +407,10 @@ class PipNavApp(App):
             return
 
         self._current_roots = self._nav_stack.pop()
+        if self._watcher is not None:
+            self._watcher.roots = self._current_roots
+        if self._indexer is not None:
+            self._indexer.invalidate()
         self._load_projects()
         self._update_title()
 
@@ -526,6 +593,7 @@ class PipNavApp(App):
             self.notify("Sound ON")
         else:
             audio._muted = True
+            shutdown_audio()
             self.notify("Sound OFF")
 
     # --- Help ---
@@ -537,9 +605,11 @@ class PipNavApp(App):
     # --- Refresh ---
 
     def action_refresh(self) -> None:
-        """Refresh all project metadata."""
+        """Refresh all project metadata (forces full re-scan)."""
         self._sessions = load_sessions()
         self._notes = load_notes()
+        if self._indexer is not None:
+            self._indexer.invalidate()
         self.notify(random_loading_message())
         self._load_projects()
 

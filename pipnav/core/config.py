@@ -21,6 +21,8 @@ class PipNavConfig:
     vscode_command: str = "code"
     claude_command: str = "claude"
     color_scheme: str = "green"
+    cache_ttl_seconds: int = 60
+    poll_interval_seconds: int = 10
 
 
 def _ensure_pipnav_dir() -> Path:
@@ -35,6 +37,7 @@ def _config_to_dict(config: PipNavConfig) -> dict:
     # Convert tuples to lists for JSON
     d["project_roots"] = list(config.project_roots)
     d["tags"] = list(config.tags)
+    # Exclude internal/transient fields from JSON
     return d
 
 
@@ -51,6 +54,10 @@ def _dict_to_config(data: dict) -> PipNavConfig:
         vscode_command=data.get("vscode_command", defaults.vscode_command),
         claude_command=data.get("claude_command", defaults.claude_command),
         color_scheme=data.get("color_scheme", defaults.color_scheme),
+        cache_ttl_seconds=data.get("cache_ttl_seconds", defaults.cache_ttl_seconds),
+        poll_interval_seconds=data.get(
+            "poll_interval_seconds", defaults.poll_interval_seconds
+        ),
     )
 
 
