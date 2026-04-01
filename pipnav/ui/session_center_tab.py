@@ -73,7 +73,7 @@ class SessionCenterTab(VerticalScroll):
         table = self.query_one("#session-center-table", SessionCenterTable)
         table.cursor_type = "row"
         table.zebra_stripes = False
-        table.add_columns("STS", "PROJECT", "BRANCH", "LAST PROMPT", "MSG", "AGE")
+        table.add_columns("STS", "PROJECT", "BRANCH", "SESSION", "MSG", "AGE")
         table.display = False
 
     def load_sessions(self, projects: tuple[ProjectInfo, ...]) -> None:

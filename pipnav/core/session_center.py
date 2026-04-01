@@ -63,7 +63,7 @@ def enrich_session(
     """Enrich a raw ClaudeSession with project context and status."""
     now = datetime.now()
     # Use last_activity for age/status — not session start time
-    age = int((now - session.last_activity).total_seconds())
+    age = max(0, int((now - session.last_activity).total_seconds()))
     status = classify_session_status(session, age)
 
     # Prefer session_name over first_message for display

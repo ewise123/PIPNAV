@@ -60,12 +60,12 @@ def discover_sessions_for_project(project_path: Path) -> tuple[ClaudeSession, ..
 
 
 def _parse_timestamp(ts: object) -> datetime | None:
-    """Parse a timestamp from a JSONL entry."""
+    """Parse a timestamp from a JSONL entry, converting UTC to local time."""
     try:
         if isinstance(ts, str):
-            return datetime.fromisoformat(
-                ts.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            # Convert to local time, then strip timezone for naive comparison
+            return dt.astimezone().replace(tzinfo=None)
         if isinstance(ts, (int, float)):
             return datetime.fromtimestamp(ts / 1000)
     except (ValueError, OSError):
