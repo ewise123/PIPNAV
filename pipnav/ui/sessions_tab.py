@@ -84,9 +84,10 @@ class SessionsTab(VerticalScroll):
         option_list.display = True
 
         for session in sessions:
-            time_str = time_ago(session.timestamp)
+            time_str = time_ago(session.last_activity)
+            display_name = session.session_name or session.first_message
             label = (
-                f"  {session.first_message}\n"
+                f"  {display_name}\n"
                 f"  [dim]{time_str} \u2014 {session.message_count} messages[/]"
             )
             option_list.add_option(Option(label, id=session.session_id))

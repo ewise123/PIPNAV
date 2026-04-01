@@ -62,8 +62,12 @@ def enrich_session(
 ) -> EnrichedSession:
     """Enrich a raw ClaudeSession with project context and status."""
     now = datetime.now()
-    age = int((now - session.timestamp).total_seconds())
+    # Use last_activity for age/status — not session start time
+    age = int((now - session.last_activity).total_seconds())
     status = classify_session_status(session, age)
+
+    # Prefer session_name over first_message for display
+    display_name = session.session_name or session.first_message
 
     return EnrichedSession(
         session_id=session.session_id,
@@ -71,10 +75,10 @@ def enrich_session(
         project_name=project_name,
         branch=branch,
         status=status,
-        last_prompt=session.first_message,
+        last_prompt=display_name,
         message_count=session.message_count,
         age_seconds=age,
-        timestamp=session.timestamp,
+        timestamp=session.last_activity,
     )
 
 

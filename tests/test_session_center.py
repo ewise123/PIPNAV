@@ -24,6 +24,8 @@ def _make_claude_session(**overrides: object) -> ClaudeSession:
         "session_id": "abc123",
         "project_path": "/home/user/projects/test",
         "timestamp": datetime.now(),
+        "last_activity": datetime.now(),
+        "session_name": "Fix Login Flow",
         "first_message": "Fix the login bug",
         "message_count": 10,
     }
@@ -90,14 +92,25 @@ class TestEnrichSession:
         assert enriched.status == "active"
         assert enriched.age_seconds >= 0
 
-    def test_preserves_message_data(self) -> None:
+    def test_prefers_session_name_over_first_message(self) -> None:
         session = _make_claude_session(
-            first_message="Add tests", message_count=25
+            session_name="Add Tests Sprint",
+            first_message="Add tests",
+            message_count=25,
+        )
+        enriched = enrich_session(session, "proj", "main")
+
+        assert enriched.last_prompt == "Add Tests Sprint"
+        assert enriched.message_count == 25
+
+    def test_falls_back_to_first_message_when_no_name(self) -> None:
+        session = _make_claude_session(
+            session_name="",
+            first_message="Add tests",
         )
         enriched = enrich_session(session, "proj", "main")
 
         assert enriched.last_prompt == "Add tests"
-        assert enriched.message_count == 25
 
 
 class TestFilterSessions:
