@@ -102,8 +102,9 @@ class SessionCenterTab(VerticalScroll):
         self._rebuild_table()
 
     def _rebuild_table(self) -> None:
-        """Rebuild the DataTable rows."""
+        """Rebuild the DataTable rows, preserving cursor position."""
         table = self.query_one("#session-center-table", SessionCenterTable)
+        prev_row = table.cursor_row
         table.clear()
 
         if not self._visible_sessions:
@@ -134,6 +135,10 @@ class SessionCenterTab(VerticalScroll):
                 msg_count,
                 age,
             )
+
+        # Restore cursor position
+        if prev_row is not None and prev_row < len(self._visible_sessions):
+            table.move_cursor(row=prev_row)
 
         # Update filter bar
         self.query_one("#session-filter-bar", Static).update(

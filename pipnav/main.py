@@ -174,6 +174,7 @@ class PipNavApp(App):
         self._idle_timer: object | None = None
         self._indexer: ProjectIndexer | None = None
         self._watcher: FileWatcher | None = None
+        self._watcher_triggered: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -298,7 +299,12 @@ class PipNavApp(App):
         self.call_from_thread(self._trigger_background_refresh)
 
     def _trigger_background_refresh(self) -> None:
-        """Trigger a background refresh from the main thread."""
+        """Trigger a background refresh from the main thread.
+
+        Skips session center rebuild to avoid flashing and cursor loss
+        when the user is browsing sessions.
+        """
+        self._watcher_triggered = True
         self._load_projects()
         # Update freshness display
         try:
@@ -319,7 +325,10 @@ class PipNavApp(App):
         self._rebuild_list(projects)
         self._update_status_bar()
         self._update_inventory()
-        self._update_session_center()
+        # Only refresh session center on manual/initial load, not watcher ticks
+        if not self._watcher_triggered:
+            self._update_session_center()
+        self._watcher_triggered = False
         # Update freshness indicator
         try:
             self.query_one("#status-bar", StatusBar).update_freshness(
