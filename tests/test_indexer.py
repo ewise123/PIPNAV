@@ -211,15 +211,15 @@ class TestProjectIndexer:
         indexer.invalidate()
         assert indexer.cache is None
 
-    def test_last_scan_time(self) -> None:
-        scan_time = datetime(2026, 3, 31, 15, 0)
-        cache = _make_cache(last_full_scan=scan_time)
+    def test_last_scan_time_none_after_warm_start(self) -> None:
+        cache = _make_cache()
         save_cache(cache)
 
         indexer = ProjectIndexer(roots=("~/projects",), ttl_seconds=60)
         indexer.warm_start()
 
-        assert indexer.last_scan_time() == scan_time
+        # warm_start doesn't count as a refresh
+        assert indexer.last_scan_time() is None
 
     def test_last_scan_time_none_when_no_cache(self) -> None:
         indexer = ProjectIndexer(roots=("~/projects",), ttl_seconds=60)
