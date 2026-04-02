@@ -151,8 +151,12 @@ class TestFileWatcher:
             on_change=on_change,
         )
         watcher.start()
+        # Wait for initial snapshot to settle
+        time.sleep(0.5)
 
-        session_file.write_text("{\"type\":\"assistant\"}\n", encoding="utf-8")
+        # Append to session file (simulates new message)
+        with session_file.open("a", encoding="utf-8") as f:
+            f.write("{\"type\":\"assistant\"}\n")
 
         time.sleep(2.5)
         watcher.stop()
