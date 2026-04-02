@@ -7,7 +7,7 @@ from pathlib import Path
 
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import DataTable, Static
 
@@ -76,10 +76,15 @@ class SessionCenterTab(VerticalScroll):
         table.add_columns("STS", "PROJECT", "BRANCH", "SESSION", "MSG", "AGE")
         table.display = False
 
-    def load_sessions(self, projects: tuple[ProjectInfo, ...]) -> None:
+    def load_sessions(
+        self,
+        projects: tuple[ProjectInfo, ...],
+        background: bool = False,
+    ) -> None:
         """Trigger background session discovery for all projects."""
         self._loading = True
-        self._show_placeholder("Scanning sessions...")
+        if not background or not self._all_sessions:
+            self._show_placeholder("Scanning sessions...")
         self._discover_sessions(projects)
 
     @work(exclusive=True, thread=True)
@@ -105,6 +110,7 @@ class SessionCenterTab(VerticalScroll):
         """Rebuild the DataTable rows, preserving cursor position."""
         table = self.query_one("#session-center-table", SessionCenterTable)
         prev_row = table.cursor_row
+        prev_session = self.get_selected_session()
         table.clear()
 
         if not self._visible_sessions:
@@ -137,7 +143,15 @@ class SessionCenterTab(VerticalScroll):
             )
 
         # Restore cursor position
-        if prev_row is not None and prev_row < len(self._visible_sessions):
+        if prev_session is not None:
+            for row_idx, session in enumerate(self._visible_sessions):
+                if session.session_id == prev_session.session_id:
+                    table.move_cursor(row=row_idx)
+                    break
+            else:
+                if prev_row is not None and prev_row < len(self._visible_sessions):
+                    table.move_cursor(row=prev_row)
+        elif prev_row is not None and prev_row < len(self._visible_sessions):
             table.move_cursor(row=prev_row)
 
         # Update filter bar
