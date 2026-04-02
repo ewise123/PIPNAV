@@ -12,6 +12,13 @@ from pipnav.core.logging import get_logger
 # Directories and files that signal state changes
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 PIPNAV_STATE_DIR = Path.home() / ".pipnav"
+GIT_METADATA_FILES = (
+    "HEAD",
+    "FETCH_HEAD",
+    "ORIG_HEAD",
+    "packed-refs",
+    "index",
+)
 
 
 def _snapshot_mtimes(paths: tuple[Path, ...]) -> dict[str, float]:
@@ -26,6 +33,45 @@ def _snapshot_mtimes(paths: tuple[Path, ...]) -> dict[str, float]:
         except OSError:
             pass
     return result
+
+
+def _add_git_watch_paths(paths: list[Path], git_dir: Path) -> None:
+    """Add .git metadata files that change during branch/session activity."""
+    paths.append(git_dir)
+
+    for filename in GIT_METADATA_FILES:
+        candidate = git_dir / filename
+        if candidate.is_file():
+            paths.append(candidate)
+
+    refs_dir = git_dir / "refs"
+    if refs_dir.is_dir():
+        paths.append(refs_dir)
+        try:
+            for ref_file in refs_dir.rglob("*"):
+                if ref_file.is_file():
+                    paths.append(ref_file)
+        except OSError:
+            pass
+
+
+def _add_claude_watch_paths(paths: list[Path]) -> None:
+    """Add Claude project/session paths so new messages trigger refreshes."""
+    if not CLAUDE_PROJECTS_DIR.is_dir():
+        return
+
+    paths.append(CLAUDE_PROJECTS_DIR)
+
+    try:
+        for project_dir in CLAUDE_PROJECTS_DIR.iterdir():
+            if not project_dir.is_dir() or project_dir.name.startswith("."):
+                continue
+            paths.append(project_dir)
+            for session_file in project_dir.glob("*.jsonl"):
+                if session_file.is_file():
+                    paths.append(session_file)
+    except OSError:
+        pass
 
 
 def _get_watched_paths(roots: tuple[str, ...]) -> tuple[Path, ...]:
@@ -45,13 +91,11 @@ def _get_watched_paths(roots: tuple[str, ...]) -> tuple[Path, ...]:
                         # Watch .git dir if it exists (branch changes, commits)
                         git_dir = entry / ".git"
                         if git_dir.is_dir():
-                            paths.append(git_dir)
+                            _add_git_watch_paths(paths, git_dir)
             except OSError:
                 pass
 
-    # Watch Claude projects dir for new sessions
-    if CLAUDE_PROJECTS_DIR.is_dir():
-        paths.append(CLAUDE_PROJECTS_DIR)
+    _add_claude_watch_paths(paths)
 
     # Watch PipNav state files
     for state_file in ("sessions.json", "notes.json", "config.json"):

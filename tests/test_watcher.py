@@ -57,8 +57,28 @@ class TestGetWatchedPaths:
         project = tmp_path / "myproject"
         git_dir = project / ".git"
         git_dir.mkdir(parents=True)
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
         paths = _get_watched_paths((str(tmp_path),))
         assert git_dir in paths
+        assert git_dir / "HEAD" in paths
+
+    def test_watches_claude_project_dirs_and_session_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pipnav.core.watcher as w
+
+        claude_root = tmp_path / "claude" / "projects"
+        session_dir = claude_root / "-home-user-projects-demo"
+        session_file = session_dir / "abc123.jsonl"
+        session_dir.mkdir(parents=True)
+        session_file.write_text("{}\n", encoding="utf-8")
+        monkeypatch.setattr(w, "CLAUDE_PROJECTS_DIR", claude_root)
+
+        paths = _get_watched_paths((str(tmp_path),))
+
+        assert claude_root in paths
+        assert session_dir in paths
+        assert session_file in paths
 
     def test_skips_hidden_dirs(self, tmp_path: Path) -> None:
         hidden = tmp_path / ".hidden"
@@ -103,6 +123,37 @@ class TestFileWatcher:
         new_project.mkdir()
 
         # Wait for watcher to detect it
+        time.sleep(2.5)
+        watcher.stop()
+
+        assert len(changes_detected) > 0
+
+    def test_detects_claude_session_file_append(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pipnav.core.watcher as w
+
+        claude_root = tmp_path / "claude" / "projects"
+        session_dir = claude_root / "-home-user-projects-demo"
+        session_file = session_dir / "abc123.jsonl"
+        session_dir.mkdir(parents=True)
+        session_file.write_text("{}\n", encoding="utf-8")
+        monkeypatch.setattr(w, "CLAUDE_PROJECTS_DIR", claude_root)
+
+        changes_detected: list[bool] = []
+
+        def on_change() -> None:
+            changes_detected.append(True)
+
+        watcher = FileWatcher(
+            roots=(str(tmp_path),),
+            interval_seconds=1,
+            on_change=on_change,
+        )
+        watcher.start()
+
+        session_file.write_text("{\"type\":\"assistant\"}\n", encoding="utf-8")
+
         time.sleep(2.5)
         watcher.stop()
 

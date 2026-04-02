@@ -174,7 +174,7 @@ class PipNavApp(App):
         self._idle_timer: object | None = None
         self._indexer: ProjectIndexer | None = None
         self._watcher: FileWatcher | None = None
-        self._watcher_triggered: bool = False
+        self._background_session_center_refresh: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -274,12 +274,12 @@ class PipNavApp(App):
     # --- Project loading ---
 
     @work(exclusive=True, thread=True)
-    def _load_projects(self) -> None:
+    def _load_projects(self, force_full: bool = False) -> None:
         """Discover projects and fetch git status in background via indexer."""
         if self._indexer is not None:
             # Update indexer roots in case they changed (drill-down)
             self._indexer.roots = self._current_roots
-            self._indexer.refresh()
+            self._indexer.refresh(force_full=force_full)
             projects = self._indexer.get_projects()
             statuses = self._indexer.get_git_statuses()
         else:
@@ -301,11 +301,11 @@ class PipNavApp(App):
     def _trigger_background_refresh(self) -> None:
         """Trigger a background refresh from the main thread.
 
-        Skips session center rebuild to avoid flashing and cursor loss
-        when the user is browsing sessions.
+        Force a full re-index so git/session changes detected by the watcher
+        are reflected immediately, then refresh the session center quietly.
         """
-        self._watcher_triggered = True
-        self._load_projects()
+        self._background_session_center_refresh = True
+        self._load_projects(force_full=True)
         # Update freshness display
         try:
             self.query_one("#status-bar", StatusBar).update_freshness(
@@ -325,10 +325,10 @@ class PipNavApp(App):
         self._rebuild_list(projects)
         self._update_status_bar()
         self._update_inventory()
-        # Only refresh session center on manual/initial load, not watcher ticks
-        if not self._watcher_triggered:
-            self._update_session_center()
-        self._watcher_triggered = False
+        self._update_session_center(
+            background=self._background_session_center_refresh
+        )
+        self._background_session_center_refresh = False
         # Update freshness indicator
         try:
             self.query_one("#status-bar", StatusBar).update_freshness(
@@ -382,11 +382,12 @@ class PipNavApp(App):
         except Exception:
             pass
 
-    def _update_session_center(self) -> None:
+    def _update_session_center(self, background: bool = False) -> None:
         """Update the CONSOLE tab with all sessions."""
         try:
             self.query_one("#CONSOLE", SessionCenterTab).load_sessions(
-                self._all_projects
+                self._all_projects,
+                background=background,
             )
         except Exception:
             pass
