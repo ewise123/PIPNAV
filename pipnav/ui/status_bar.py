@@ -31,6 +31,7 @@ class StatusBar(Static):
         super().__init__("", **kwargs)
         self._timer: object | None = None
         self._last_scan: datetime | None = None
+        self._profile_name: str = ""
 
     def on_mount(self) -> None:
         """Start clock update timer."""
@@ -61,6 +62,11 @@ class StatusBar(Static):
         self._last_scan = last_scan
         self._refresh_display()
 
+    def update_profile(self, name: str) -> None:
+        """Update the active profile display."""
+        self._profile_name = name
+        self._refresh_display()
+
     def _refresh_display(self) -> None:
         """Re-render the status bar."""
         hp_bar = make_bar(self.clean_projects, self.total_projects, 8)
@@ -76,10 +82,12 @@ class StatusBar(Static):
         now = datetime.now().strftime("%m.%d.%Y %H:%M")
 
         freshness = self._format_freshness()
+        profile = f"  │  [{self._profile_name}]" if self._profile_name else ""
 
         self.update(
             f" HP:{hp_bar} {hp_text} clean"
             f"  │  AP:{ap_bar} {ap_text} w/ claude"
+            f"{profile}"
             f"  │  {freshness}"
             f"  │  {now}"
         )

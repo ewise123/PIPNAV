@@ -20,6 +20,14 @@ from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.indexer import ProjectIndexer
 from pipnav.core.launcher import launch_claude, launch_vscode
 from pipnav.core.logging import setup_logging
+from pipnav.core.profiles import (
+    DEFAULT_PROFILE,
+    WorkspaceProfile,
+    get_available_recipes,
+    get_effective_roots,
+    get_profile_by_name,
+    load_profiles,
+)
 from pipnav.core.notes import ProjectNotes, cycle_tag, load_notes, set_note
 from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
 from pipnav.core.search import filter_projects
@@ -37,6 +45,8 @@ from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.profile_switcher import ProfileSwitcher
+from pipnav.ui.recipe_picker import RecipePicker
 from pipnav.ui.session_center_tab import SessionCenterTab
 from pipnav.ui.sessions_tab import SessionsTab
 from pipnav.ui.status_bar import StatusBar
@@ -147,6 +157,8 @@ class PipNavApp(App):
         ("question_mark", "show_help", "Help"),
         ("f", "session_filter", "Filter"),
         ("o", "session_sort", "Sort"),
+        ("w", "switch_profile", "Profile"),
+        ("a", "pick_recipe", "Action"),
     ]
 
     _CHAR_ACTIONS = frozenset({
@@ -154,6 +166,7 @@ class PipNavApp(App):
         "open_vscode", "open_claude", "resume_claude", "start_search",
         "cycle_tag", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme", "session_filter", "session_sort",
+        "switch_profile", "pick_recipe",
     })
 
     def __init__(self) -> None:
@@ -174,7 +187,9 @@ class PipNavApp(App):
         self._idle_timer: object | None = None
         self._indexer: ProjectIndexer | None = None
         self._watcher: FileWatcher | None = None
-        self._background_session_center_refresh: bool = False
+        self._watcher_triggered: bool = False
+        self._profiles: tuple[WorkspaceProfile, ...] = ()
+        self._active_profile: WorkspaceProfile = DEFAULT_PROFILE
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -199,10 +214,20 @@ class PipNavApp(App):
 
         self._sessions = load_sessions()
         self._notes = load_notes()
-        self._current_roots = self._config.project_roots
 
-        # Apply color scheme from config
-        scheme = getattr(self._config, "color_scheme", "green")
+        # Load workspace profiles and apply active profile
+        self._profiles = load_profiles()
+        if self._config.active_profile:
+            found = get_profile_by_name(self._profiles, self._config.active_profile)
+            if found is not None:
+                self._active_profile = found
+
+        self._current_roots = get_effective_roots(
+            self._active_profile, self._config.project_roots
+        )
+
+        # Apply color scheme — profile overrides config
+        scheme = self._active_profile.color_scheme or self._config.color_scheme
         if scheme not in SCHEME_NAMES:
             scheme = "green"
         self.theme = f"pipboy-{scheme}"
@@ -232,6 +257,15 @@ class PipNavApp(App):
             on_change=self._on_watcher_change,
         )
         self._watcher.start()
+
+        # Show active profile in status bar
+        if self._active_profile.name != "default":
+            try:
+                self.query_one("#status-bar", StatusBar).update_profile(
+                    self._active_profile.name
+                )
+            except Exception:
+                pass
 
         self.query_one("#project-list", ProjectList).focus_list()
         self._load_projects()
@@ -606,6 +640,87 @@ class PipNavApp(App):
         self._config = update_config(self._config, color_scheme=next_scheme)
         self.theme = f"pipboy-{next_scheme}"
         self.notify(f"Color scheme: {next_scheme.upper()}")
+
+    # --- Workspace profiles ---
+
+    def action_switch_profile(self) -> None:
+        """Open the profile switcher modal."""
+        if not self._profiles:
+            self.notify("No profiles configured — add them to ~/.pipnav/profiles.json")
+            return
+        self.push_screen(
+            ProfileSwitcher(self._profiles, self._active_profile.name)
+        )
+
+    @on(ProfileSwitcher.Selected)
+    def _on_profile_selected(self, event: ProfileSwitcher.Selected) -> None:
+        """Apply the selected workspace profile."""
+        profile = event.profile
+        self._active_profile = profile
+        self._config = update_config(self._config, active_profile=profile.name)
+
+        # Update roots
+        self._current_roots = get_effective_roots(
+            profile, self._config.project_roots
+        )
+        if self._watcher is not None:
+            self._watcher.roots = self._current_roots
+        if self._indexer is not None:
+            self._indexer.invalidate()
+
+        # Apply profile color scheme if set
+        if profile.color_scheme and profile.color_scheme in SCHEME_NAMES:
+            self.theme = f"pipboy-{profile.color_scheme}"
+
+        # Update status bar profile indicator
+        try:
+            bar_name = profile.name if profile.name != "default" else ""
+            self.query_one("#status-bar", StatusBar).update_profile(bar_name)
+        except Exception:
+            pass
+
+        self.notify(f"Profile: {profile.name}")
+        self._load_projects()
+
+    def action_pick_recipe(self) -> None:
+        """Open the recipe picker modal for the selected project."""
+        path = self._selected_project_path()
+        if not path:
+            self.notify("Select a project first", severity="warning")
+            return
+        recipes = get_available_recipes(self._active_profile)
+        self.push_screen(RecipePicker(recipes))
+
+    @on(RecipePicker.Selected)
+    def _on_recipe_selected(self, event: RecipePicker.Selected) -> None:
+        """Execute the selected launch recipe."""
+        path = self._selected_project_path()
+        if not path:
+            return
+
+        recipe = event.recipe
+        play_sound("launch")
+
+        if recipe.action == "resume_latest":
+            ok, err = launch_claude(
+                path, self._config.claude_command, resume=True
+            )
+        elif recipe.action == "resume_pick":
+            # Switch to SESSIONS tab so user can pick
+            self.action_show_tab("SESSIONS")
+            return
+        else:
+            # Default: launch with recipe flags
+            extra_flags = list(recipe.claude_flags)
+            if recipe.permission_mode:
+                extra_flags.extend(["--permission-mode", recipe.permission_mode])
+            ok, err = launch_claude(path, self._config.claude_command)
+
+        if ok:
+            self._sessions = record_session(path, resumable=True)
+            self.notify(f"{recipe.name}: {path.name}")
+        else:
+            self.notify(err, severity="error")
 
     # --- Sound toggle ---
 
