@@ -23,6 +23,7 @@ from pipnav.core.logging import setup_logging
 from pipnav.core.profiles import (
     DEFAULT_PROFILE,
     WorkspaceProfile,
+    filter_projects_by_profile,
     get_available_recipes,
     get_effective_roots,
     get_profile_by_name,
@@ -45,7 +46,9 @@ from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.launch_builder import LaunchBuilder
 from pipnav.ui.profile_switcher import ProfileSwitcher
+from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
 from pipnav.ui.session_center_tab import SessionCenterTab
 from pipnav.ui.sessions_tab import SessionsTab
@@ -190,6 +193,7 @@ class PipNavApp(App):
         self._watcher_triggered: bool = False
         self._profiles: tuple[WorkspaceProfile, ...] = ()
         self._active_profile: WorkspaceProfile = DEFAULT_PROFILE
+        self._background_session_center_refresh: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -217,8 +221,11 @@ class PipNavApp(App):
 
         # Load workspace profiles and apply active profile
         self._profiles = load_profiles()
+        available_profiles = self._available_profiles()
         if self._config.active_profile:
-            found = get_profile_by_name(self._profiles, self._config.active_profile)
+            found = get_profile_by_name(
+                available_profiles, self._config.active_profile
+            )
             if found is not None:
                 self._active_profile = found
 
@@ -354,9 +361,22 @@ class PipNavApp(App):
         statuses: dict[str, GitStatus | None],
     ) -> None:
         """Update the UI with discovered projects."""
-        self._all_projects = projects
-        self._git_statuses.update(statuses)
-        self._rebuild_list(projects)
+        visible_paths = frozenset(
+            filter_projects_by_profile(
+                tuple(str(project.path) for project in projects),
+                self._active_profile,
+            )
+        )
+        visible_projects = tuple(
+            project for project in projects if str(project.path) in visible_paths
+        )
+        self._all_projects = visible_projects
+        self._git_statuses = {
+            path: status
+            for path, status in statuses.items()
+            if path in visible_paths
+        }
+        self._rebuild_list(visible_projects)
         self._update_status_bar()
         self._update_inventory()
         self._update_session_center(
@@ -486,7 +506,8 @@ class PipNavApp(App):
     @on(ProjectList.Selected)
     def _on_project_selected(self, event: ProjectList.Selected) -> None:
         """Update detail panel and tabs when a project is selected."""
-        play_sound("navigate")
+        if getattr(event, "user_initiated", True):
+            play_sound("navigate")
         path = event.path
         name = event.name
 
@@ -645,11 +666,8 @@ class PipNavApp(App):
 
     def action_switch_profile(self) -> None:
         """Open the profile switcher modal."""
-        if not self._profiles:
-            self.notify("No profiles configured — add them to ~/.pipnav/profiles.json")
-            return
         self.push_screen(
-            ProfileSwitcher(self._profiles, self._active_profile.name)
+            ProfileSwitcher(self._available_profiles(), self._active_profile.name)
         )
 
     @on(ProfileSwitcher.Selected)
@@ -660,6 +678,7 @@ class PipNavApp(App):
         self._config = update_config(self._config, active_profile=profile.name)
 
         # Update roots
+        self._nav_stack.clear()
         self._current_roots = get_effective_roots(
             profile, self._config.project_roots
         )
@@ -668,9 +687,11 @@ class PipNavApp(App):
         if self._indexer is not None:
             self._indexer.invalidate()
 
-        # Apply profile color scheme if set
-        if profile.color_scheme and profile.color_scheme in SCHEME_NAMES:
-            self.theme = f"pipboy-{profile.color_scheme}"
+        # Apply profile color scheme, or fall back to the global config scheme.
+        scheme = profile.color_scheme or self._config.color_scheme
+        if scheme not in SCHEME_NAMES:
+            scheme = "green"
+        self.theme = f"pipboy-{scheme}"
 
         # Update status bar profile indicator
         try:
@@ -681,6 +702,7 @@ class PipNavApp(App):
 
         self.notify(f"Profile: {profile.name}")
         self._load_projects()
+        self._update_title()
 
     def action_pick_recipe(self) -> None:
         """Open the recipe picker modal for the selected project."""
@@ -700,27 +722,105 @@ class PipNavApp(App):
 
         recipe = event.recipe
         play_sound("launch")
+        extra_flags = list(recipe.claude_flags)
+        if recipe.permission_mode:
+            extra_flags.extend(["--permission-mode", recipe.permission_mode])
 
         if recipe.action == "resume_latest":
             ok, err = launch_claude(
-                path, self._config.claude_command, resume=True
+                path,
+                self._config.claude_command,
+                resume=True,
+                extra_flags=tuple(extra_flags),
             )
         elif recipe.action == "resume_pick":
             # Switch to SESSIONS tab so user can pick
             self.action_show_tab("SESSIONS")
             return
         else:
-            # Default: launch with recipe flags
-            extra_flags = list(recipe.claude_flags)
-            if recipe.permission_mode:
-                extra_flags.extend(["--permission-mode", recipe.permission_mode])
-            ok, err = launch_claude(path, self._config.claude_command)
+            ok, err = launch_claude(
+                path,
+                self._config.claude_command,
+                extra_flags=tuple(extra_flags),
+            )
 
         if ok:
             self._sessions = record_session(path, resumable=True)
             self.notify(f"{recipe.name}: {path.name}")
         else:
             self.notify(err, severity="error")
+
+    @on(RecipePicker.CustomRequested)
+    def _on_custom_requested(self, event: RecipePicker.CustomRequested) -> None:
+        """Open the custom launch builder."""
+        path = self._selected_project_path()
+        name = path.name if path else ""
+        self.push_screen(LaunchBuilder(project_name=name))
+
+    @on(RecipePicker.NewRecipeRequested)
+    def _on_new_recipe_requested(
+        self, event: RecipePicker.NewRecipeRequested
+    ) -> None:
+        """Open the recipe editor for a new recipe."""
+        self.push_screen(RecipeEditor())
+
+    @on(LaunchBuilder.Launched)
+    def _on_custom_launch(self, event: LaunchBuilder.Launched) -> None:
+        """Handle a custom launch."""
+        path = self._selected_project_path()
+        if not path:
+            return
+
+        play_sound("launch")
+        flags = list(event.options.to_flags())
+        ok, err = launch_claude(
+            path, self._config.claude_command, extra_flags=tuple(flags)
+        )
+
+        if ok:
+            self._sessions = record_session(path, resumable=True)
+            self.notify(f"Custom launch: {path.name}")
+
+            # Save as recipe if requested
+            if event.save_as_recipe:
+                recipe = launch_options_to_recipe(event.options)
+                self.push_screen(RecipeEditor(recipe))
+        else:
+            self.notify(err, severity="error")
+
+    @on(RecipeEditor.Saved)
+    def _on_recipe_saved(self, event: RecipeEditor.Saved) -> None:
+        """Save a new recipe to the active profile."""
+        from pipnav.core.profiles import save_profiles
+
+        recipe = event.recipe
+        profile = self._active_profile
+
+        # Add recipe to profile (replace if same name exists)
+        existing = tuple(r for r in profile.recipes if r.name != recipe.name)
+        updated_profile = WorkspaceProfile(
+            name=profile.name,
+            roots=profile.roots,
+            tags_filter=profile.tags_filter,
+            hidden_projects=profile.hidden_projects,
+            color_scheme=profile.color_scheme,
+            default_recipe=profile.default_recipe,
+            recipes=(*existing, recipe),
+        )
+        self._active_profile = updated_profile
+
+        # Update in profiles list
+        updated_profiles = tuple(
+            updated_profile if p.name == profile.name else p
+            for p in self._profiles
+        )
+        # If profile wasn't in the list (e.g. default), add it
+        if not any(p.name == profile.name for p in self._profiles):
+            updated_profiles = (*self._profiles, updated_profile)
+
+        self._profiles = updated_profiles
+        save_profiles(self._profiles)
+        self.notify(f"Recipe saved: {recipe.name}")
 
     # --- Sound toggle ---
 
@@ -895,6 +995,19 @@ class PipNavApp(App):
             self.query_one("#STAT", ProjectDetail).update_detail(
                 entry.name, path, git_status, session, notes, readme
             )
+
+    def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:
+        """Return configured profiles plus the built-in default profile."""
+        profiles: list[WorkspaceProfile] = [DEFAULT_PROFILE]
+        seen = {DEFAULT_PROFILE.name.lower()}
+
+        for profile in self._profiles:
+            if profile.name.lower() in seen:
+                continue
+            profiles.append(profile)
+            seen.add(profile.name.lower())
+
+        return tuple(profiles)
 
 
 def main() -> None:
