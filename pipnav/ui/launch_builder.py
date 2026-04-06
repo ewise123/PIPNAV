@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.events import Key
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, Switch
@@ -18,9 +19,27 @@ from pipnav.core.launcher import (
     LaunchOptions,
 )
 
+# IDs of focusable fields in tab order
+_FIELD_IDS = (
+    "#model-select",
+    "#perm-select",
+    "#effort-select",
+    "#name-input",
+    "#dirs-input",
+    "#worktree-switch",
+    "#prompt-input",
+    "#launch-btn",
+    "#save-btn",
+    "#cancel-btn",
+)
+
 
 class LaunchBuilder(ModalScreen):
-    """Modal for building a custom Claude Code launch configuration."""
+    """Modal for building a custom Claude Code launch configuration.
+
+    Navigation: Up/Down or j/k move between fields.
+    Space or Enter interact with the focused field (open dropdown, toggle switch, press button).
+    """
 
     DEFAULT_CSS = """
     LaunchBuilder {
@@ -86,6 +105,7 @@ class LaunchBuilder(ModalScreen):
         with Vertical(id="builder-container"):
             yield Static(
                 f"[bold]CUSTOM LAUNCH[/]  {self._project_name}\n"
+                f"[dim]j/k:navigate  Enter/Space:select  Esc:cancel[/]\n"
             )
 
             with Horizontal(classes="field-row"):
@@ -130,6 +150,71 @@ class LaunchBuilder(ModalScreen):
                     id="save-btn",
                 )
                 yield Button("Cancel", variant="error", id="cancel-btn")
+
+    def on_mount(self) -> None:
+        """Focus the first field."""
+        try:
+            self.query_one(_FIELD_IDS[0]).focus()
+        except Exception:
+            pass
+
+    def on_key(self, event: Key) -> None:
+        """Intercept arrow keys for field navigation.
+
+        Up/Down and j/k move between fields. This prevents Select widgets
+        from capturing arrows for their own dropdown cycling.
+        Input widgets still get normal key handling for typing.
+        """
+        focused = self.focused
+
+        # Let Input widgets handle all keys normally (for typing)
+        if isinstance(focused, Input):
+            if event.key in ("up", "down", "k", "j"):
+                # But still allow j/k to navigate out of inputs
+                if event.key in ("j", "k"):
+                    pass  # fall through to navigation below
+                else:
+                    return  # let up/down work normally in inputs (cursor)
+
+        if event.key in ("down", "j"):
+            event.stop()
+            event.prevent_default()
+            self._focus_next()
+        elif event.key in ("up", "k"):
+            event.stop()
+            event.prevent_default()
+            self._focus_prev()
+
+    def _current_field_index(self) -> int:
+        """Find the index of the currently focused field."""
+        focused = self.focused
+        if focused is None:
+            return -1
+        for i, fid in enumerate(_FIELD_IDS):
+            try:
+                if self.query_one(fid) is focused:
+                    return i
+            except Exception:
+                pass
+        return -1
+
+    def _focus_next(self) -> None:
+        """Move focus to the next field."""
+        idx = self._current_field_index()
+        next_idx = (idx + 1) % len(_FIELD_IDS) if idx >= 0 else 0
+        try:
+            self.query_one(_FIELD_IDS[next_idx]).focus()
+        except Exception:
+            pass
+
+    def _focus_prev(self) -> None:
+        """Move focus to the previous field."""
+        idx = self._current_field_index()
+        prev_idx = (idx - 1) % len(_FIELD_IDS) if idx >= 0 else len(_FIELD_IDS) - 1
+        try:
+            self.query_one(_FIELD_IDS[prev_idx]).focus()
+        except Exception:
+            pass
 
     def _build_options(self) -> LaunchOptions:
         """Build LaunchOptions from current form state."""

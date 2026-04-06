@@ -12,7 +12,7 @@ from pipnav.core.logging import get_logger
 from pipnav.core.projects import ProjectInfo, discover_projects
 
 CACHE_PATH = PIPNAV_DIR / "cache.json"
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -33,8 +33,20 @@ class IndexCache:
     """Full index cache with version and freshness tracking."""
 
     version: int
+    roots: tuple[str, ...]
     projects: tuple[CachedProjectState, ...]
     last_full_scan: datetime
+
+
+def _normalize_roots(roots: tuple[str, ...]) -> tuple[str, ...]:
+    """Normalize roots so cache keys are stable across `~` or relative paths."""
+    normalized: list[str] = []
+    for root in roots:
+        try:
+            normalized.append(str(Path(root).expanduser().resolve()))
+        except OSError:
+            normalized.append(str(Path(root).expanduser()))
+    return tuple(normalized)
 
 
 def _git_status_to_dict(gs: GitStatus | None) -> dict | None:
@@ -113,6 +125,7 @@ def load_cache() -> IndexCache | None:
 
         return IndexCache(
             version=CACHE_VERSION,
+            roots=tuple(data["roots"]),
             projects=tuple(projects),
             last_full_scan=datetime.fromisoformat(data["last_full_scan"]),
         )
@@ -129,6 +142,7 @@ def save_cache(cache: IndexCache) -> None:
     try:
         data = {
             "version": cache.version,
+            "roots": list(cache.roots),
             "projects": [_cached_state_to_dict(p) for p in cache.projects],
             "last_full_scan": cache.last_full_scan.isoformat(),
         }
@@ -164,6 +178,7 @@ def full_scan(roots: tuple[str, ...]) -> IndexCache:
 
     return IndexCache(
         version=CACHE_VERSION,
+        roots=_normalize_roots(roots),
         projects=states,
         last_full_scan=datetime.now(),
     )
@@ -213,6 +228,7 @@ def incremental_update(
 
     return IndexCache(
         version=CACHE_VERSION,
+        roots=_normalize_roots(roots),
         projects=tuple(updated),
         last_full_scan=cache.last_full_scan,
     )
@@ -245,7 +261,16 @@ class ProjectIndexer:
 
     def warm_start(self) -> IndexCache | None:
         """Try to load cache from disk for instant startup."""
-        self._cache = load_cache()
+        cache = load_cache()
+        if cache is None:
+            self._cache = None
+            return None
+
+        if cache.roots != _normalize_roots(self._roots):
+            self._cache = None
+            return None
+
+        self._cache = cache
         return self._cache
 
     def refresh(self, force_full: bool = False) -> IndexCache:

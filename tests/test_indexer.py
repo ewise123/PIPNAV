@@ -63,6 +63,7 @@ def _make_cached_state(
 def _make_cache(**overrides: object) -> IndexCache:
     defaults = {
         "version": CACHE_VERSION,
+        "roots": (str(Path("~/projects").expanduser().resolve()),),
         "projects": (_make_cached_state(),),
         "last_full_scan": datetime(2026, 3, 31, 12, 0),
     }
@@ -153,6 +154,16 @@ class TestProjectIndexer:
 
         assert result is not None
         assert len(result.projects) == 1
+
+    def test_warm_start_ignores_cache_for_other_roots(self) -> None:
+        cache = _make_cache(roots=(str(Path("/tmp/other").resolve()),))
+        save_cache(cache)
+
+        indexer = ProjectIndexer(roots=("~/projects",), ttl_seconds=60)
+        result = indexer.warm_start()
+
+        assert result is None
+        assert indexer.cache is None
 
     def test_get_git_statuses_empty_when_no_cache(self) -> None:
         indexer = ProjectIndexer(roots=("~/projects",), ttl_seconds=60)

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import shlex
+from dataclasses import dataclass, replace
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.events import Key
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static
@@ -26,9 +28,34 @@ RECIPE_ACTIONS = (
     ("Pick session to resume", "resume_pick"),
 )
 
+# IDs of focusable fields in tab order
+_FIELD_IDS = (
+    "#name-input",
+    "#desc-input",
+    "#action-select",
+    "#perm-select",
+    "#flags-input",
+    "#save-btn",
+    "#cancel-btn",
+)
+
+
+def _format_flag_string(flags: tuple[str, ...]) -> str:
+    """Render CLI flags so quoted values round-trip through the editor."""
+    return shlex.join(flags)
+
+
+def _split_flag_string(value: str) -> tuple[str, ...]:
+    """Parse CLI flags using shell-style quoting rules."""
+    return tuple(shlex.split(value))
+
 
 class RecipeEditor(ModalScreen):
-    """Modal for creating or editing a launch recipe."""
+    """Modal for creating or editing a launch recipe.
+
+    Navigation: Up/Down or j/k move between fields.
+    Space or Enter interact with the focused field.
+    """
 
     DEFAULT_CSS = """
     RecipeEditor {
@@ -90,7 +117,10 @@ class RecipeEditor(ModalScreen):
         perm_options = [("(default)", "")] + [(p, p) for p in PERMISSION_MODES]
 
         with Vertical(id="editor-container"):
-            yield Static(f"[bold]{title}[/]\n")
+            yield Static(
+                f"[bold]{title}[/]\n"
+                f"[dim]j/k:navigate  Enter/Space:select  Esc:cancel[/]\n"
+            )
 
             with Horizontal(classes="field-row"):
                 yield Label("Name", classes="field-label")
@@ -127,7 +157,7 @@ class RecipeEditor(ModalScreen):
             with Horizontal(classes="field-row"):
                 yield Label("Extra Flags", classes="field-label")
                 yield Input(
-                    value=" ".join(self._recipe.claude_flags) if editing else "",
+                    value=_format_flag_string(self._recipe.claude_flags) if editing else "",
                     placeholder="e.g. --model opus --effort max",
                     id="flags-input",
                 )
@@ -135,6 +165,59 @@ class RecipeEditor(ModalScreen):
             with Horizontal(classes="button-row"):
                 yield Button("Save", variant="primary", id="save-btn")
                 yield Button("Cancel", variant="error", id="cancel-btn")
+
+    def on_mount(self) -> None:
+        """Focus the first field."""
+        try:
+            self.query_one(_FIELD_IDS[0]).focus()
+        except Exception:
+            pass
+
+    def on_key(self, event: Key) -> None:
+        """Intercept arrow keys for field navigation."""
+        focused = self.focused
+
+        # Let Input widgets handle up/down normally, but j/k navigate out
+        if isinstance(focused, Input):
+            if event.key in ("up", "down"):
+                return
+
+        if event.key in ("down", "j"):
+            event.stop()
+            event.prevent_default()
+            self._focus_next()
+        elif event.key in ("up", "k"):
+            event.stop()
+            event.prevent_default()
+            self._focus_prev()
+
+    def _current_field_index(self) -> int:
+        focused = self.focused
+        if focused is None:
+            return -1
+        for i, fid in enumerate(_FIELD_IDS):
+            try:
+                if self.query_one(fid) is focused:
+                    return i
+            except Exception:
+                pass
+        return -1
+
+    def _focus_next(self) -> None:
+        idx = self._current_field_index()
+        next_idx = (idx + 1) % len(_FIELD_IDS) if idx >= 0 else 0
+        try:
+            self.query_one(_FIELD_IDS[next_idx]).focus()
+        except Exception:
+            pass
+
+    def _focus_prev(self) -> None:
+        idx = self._current_field_index()
+        prev_idx = (idx - 1) % len(_FIELD_IDS) if idx >= 0 else len(_FIELD_IDS) - 1
+        try:
+            self.query_one(_FIELD_IDS[prev_idx]).focus()
+        except Exception:
+            pass
 
     def _build_recipe(self) -> LaunchRecipe | None:
         """Build a LaunchRecipe from form state."""
@@ -150,9 +233,14 @@ class RecipeEditor(ModalScreen):
         action = str(action_sel.value) if action_sel.value != Select.BLANK else "launch"
         perm = str(perm_sel.value) if perm_sel.value != Select.BLANK else ""
 
-        flags = tuple(
-            f.strip() for f in flags_input.value.split() if f.strip()
-        )
+        try:
+            flags = _split_flag_string(flags_input.value)
+        except ValueError:
+            self.notify(
+                "Extra Flags must use valid shell-style quoting",
+                severity="warning",
+            )
+            return None
 
         return LaunchRecipe(
             name=name,
@@ -183,10 +271,11 @@ def launch_options_to_recipe(
     options: LaunchOptions, name: str = "Custom"
 ) -> LaunchRecipe:
     """Convert a LaunchOptions into a saveable LaunchRecipe."""
+    flags = replace(options, permission_mode="").to_flags()
     return LaunchRecipe(
         name=name,
         description="Saved from custom launch",
         action="launch",
-        claude_flags=options.to_flags(),
+        claude_flags=flags,
         permission_mode=options.permission_mode,
     )
