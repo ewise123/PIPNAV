@@ -21,6 +21,9 @@ class PipNavConfig:
     vscode_command: str = "code"
     claude_command: str = "claude"
     color_scheme: str = "green"
+    active_profile: str = ""
+    cache_ttl_seconds: int = 60
+    poll_interval_seconds: int = 10
 
 
 def _ensure_pipnav_dir() -> Path:
@@ -51,6 +54,11 @@ def _dict_to_config(data: dict) -> PipNavConfig:
         vscode_command=data.get("vscode_command", defaults.vscode_command),
         claude_command=data.get("claude_command", defaults.claude_command),
         color_scheme=data.get("color_scheme", defaults.color_scheme),
+        active_profile=data.get("active_profile", defaults.active_profile),
+        cache_ttl_seconds=data.get("cache_ttl_seconds", defaults.cache_ttl_seconds),
+        poll_interval_seconds=data.get(
+            "poll_interval_seconds", defaults.poll_interval_seconds
+        ),
     )
 
 

@@ -18,6 +18,8 @@ class ClaudeSession:
     session_id: str
     project_path: str
     timestamp: datetime
+    last_activity: datetime
+    session_name: str
     first_message: str
     message_count: int
 
@@ -52,9 +54,23 @@ def discover_sessions_for_project(project_path: Path) -> tuple[ClaudeSession, ..
     except OSError as exc:
         logger.error("Error scanning sessions for %s: %s", project_path, exc)
 
-    # Sort by timestamp, most recent first
-    sessions.sort(key=lambda s: s.timestamp, reverse=True)
+    # Sort by last activity so resumed sessions stay at the top.
+    sessions.sort(key=lambda s: s.last_activity, reverse=True)
     return tuple(sessions)
+
+
+def _parse_timestamp(ts: object) -> datetime | None:
+    """Parse a timestamp from a JSONL entry, converting UTC to local time."""
+    try:
+        if isinstance(ts, str):
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            # Convert to local time, then strip timezone for naive comparison
+            return dt.astimezone().replace(tzinfo=None)
+        if isinstance(ts, (int, float)):
+            return datetime.fromtimestamp(ts / 1000)
+    except (ValueError, OSError):
+        pass
+    return None
 
 
 def _parse_session_file(
@@ -63,7 +79,9 @@ def _parse_session_file(
     """Parse a session JSONL file to extract metadata."""
     logger = get_logger()
     first_message = ""
-    timestamp: datetime | None = None
+    session_name = ""
+    start_timestamp: datetime | None = None
+    last_timestamp: datetime | None = None
     message_count = 0
 
     try:
@@ -83,20 +101,21 @@ def _parse_session_file(
                 if entry_type in ("user", "assistant"):
                     message_count += 1
 
-                # Get timestamp from first entry
-                if timestamp is None and "timestamp" in entry:
-                    try:
-                        ts = entry["timestamp"]
-                        if isinstance(ts, str):
-                            timestamp = datetime.fromisoformat(
-                                ts.replace("Z", "+00:00")
-                            ).replace(tzinfo=None)
-                        elif isinstance(ts, (int, float)):
-                            timestamp = datetime.fromtimestamp(ts / 1000)
-                    except (ValueError, OSError):
-                        pass
+                # Track timestamps — first and last
+                if "timestamp" in entry:
+                    parsed = _parse_timestamp(entry["timestamp"])
+                    if parsed is not None:
+                        if start_timestamp is None:
+                            start_timestamp = parsed
+                        last_timestamp = parsed
 
-                # Get first user message as summary
+                # Get session name from custom-title (use the latest one)
+                if entry_type == "custom-title":
+                    title = entry.get("customTitle", "")
+                    if title:
+                        session_name = title
+
+                # Get first user message as fallback summary
                 if (
                     not first_message
                     and entry_type == "user"
@@ -104,10 +123,8 @@ def _parse_session_file(
                 ):
                     content = entry["message"].get("content", "")
                     if isinstance(content, str):
-                        # Strip command tags and clean up
                         first_message = _clean_message(content)
                     elif isinstance(content, list):
-                        # Content blocks format
                         for block in content:
                             if isinstance(block, dict) and block.get("type") == "text":
                                 first_message = _clean_message(block.get("text", ""))
@@ -117,17 +134,22 @@ def _parse_session_file(
         logger.debug("Error reading session file %s: %s", path, exc)
         return None
 
-    if timestamp is None:
+    if start_timestamp is None:
         # Fall back to file mtime
         try:
-            timestamp = datetime.fromtimestamp(path.stat().st_mtime)
+            start_timestamp = datetime.fromtimestamp(path.stat().st_mtime)
         except OSError:
             return None
+
+    if last_timestamp is None:
+        last_timestamp = start_timestamp
 
     return ClaudeSession(
         session_id=session_id,
         project_path=project_path,
-        timestamp=timestamp,
+        timestamp=start_timestamp,
+        last_activity=last_timestamp,
+        session_name=session_name,
         first_message=first_message or "(no message)",
         message_count=message_count,
     )

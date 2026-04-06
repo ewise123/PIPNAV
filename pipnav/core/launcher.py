@@ -3,9 +3,62 @@
 import shlex
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 from pipnav.core.logging import get_logger
+
+
+# Available choices for the custom launch builder
+PERMISSION_MODES = ("default", "auto", "plan", "acceptEdits", "dontAsk", "bypassPermissions")
+EFFORT_LEVELS = ("low", "medium", "high", "max")
+MODEL_ALIASES = ("sonnet", "opus", "haiku")
+
+
+@dataclass(frozen=True)
+class LaunchOptions:
+    """Full set of Claude Code launch options."""
+
+    model: str = ""
+    permission_mode: str = ""
+    worktree: bool = False
+    worktree_name: str = ""
+    add_dirs: tuple[str, ...] = ()
+    effort: str = ""
+    allowed_tools: tuple[str, ...] = ()
+    disallowed_tools: tuple[str, ...] = ()
+    session_name: str = ""
+    append_system_prompt: str = ""
+    continue_session: bool = False
+
+    def to_flags(self) -> tuple[str, ...]:
+        """Convert options to CLI flags."""
+        flags: list[str] = []
+        if self.model:
+            flags.extend(["--model", self.model])
+        if self.permission_mode:
+            flags.extend(["--permission-mode", self.permission_mode])
+        if self.worktree:
+            if self.worktree_name:
+                flags.extend(["--worktree", self.worktree_name])
+            else:
+                flags.append("--worktree")
+        for d in self.add_dirs:
+            flags.extend(["--add-dir", d])
+        if self.effort:
+            flags.extend(["--effort", self.effort])
+        if self.allowed_tools:
+            flags.extend(["--allowedTools", ",".join(self.allowed_tools)])
+        if self.disallowed_tools:
+            flags.extend(["--disallowedTools", ",".join(self.disallowed_tools)])
+        if self.session_name:
+            flags.extend(["--name", self.session_name])
+        if self.append_system_prompt:
+            flags.extend(["--append-system-prompt", self.append_system_prompt])
+        if self.continue_session:
+            flags.append("--continue")
+        return tuple(flags)
 
 
 def launch_vscode(
@@ -36,6 +89,7 @@ def launch_claude(
     command: str = "claude",
     resume: bool = False,
     session_id: str | None = None,
+    extra_flags: Sequence[str] = (),
 ) -> tuple[bool, str]:
     """Launch Claude Code in a new Windows Terminal tab. Returns (success, error_message)."""
     logger = get_logger()
@@ -50,19 +104,22 @@ def launch_claude(
     try:
         quoted_path = shlex.quote(str(path))
         quoted_cmd = shlex.quote(command)
+        flags = list(extra_flags)
+        has_permission_mode = "--permission-mode" in flags
 
         if session_id:
-            quoted_sid = shlex.quote(session_id)
-            shell_cmd = (
-                f"cd {quoted_path} && {quoted_cmd}"
-                f" --resume {quoted_sid} --permission-mode auto"
-            )
+            flags.extend(["--resume", session_id])
+            if not has_permission_mode:
+                flags.extend(["--permission-mode", "auto"])
         elif resume:
-            shell_cmd = f"cd {quoted_path} && {quoted_cmd} --resume"
+            flags.append("--resume")
         else:
-            shell_cmd = (
-                f"cd {quoted_path} && {quoted_cmd} --permission-mode auto"
-            )
+            if not has_permission_mode:
+                flags.extend(["--permission-mode", "auto"])
+
+        quoted_flags = " ".join(shlex.quote(flag) for flag in flags)
+        flags_suffix = f" {quoted_flags}" if quoted_flags else ""
+        shell_cmd = f"cd {quoted_path} && {quoted_cmd}{flags_suffix}"
 
         args = [
             wt, "-w", "0", "new-tab",
