@@ -174,13 +174,16 @@ class RecipeEditor(ModalScreen):
             pass
 
     def on_key(self, event: Key) -> None:
-        """Intercept arrow keys for field navigation."""
+        """Intercept arrow keys for field navigation.
+
+        Up/Down move between fields (except in Input widgets where they
+        move the cursor). j/k are passed through to Input widgets for typing.
+        """
         focused = self.focused
 
-        # Let Input widgets handle up/down normally, but j/k navigate out
+        # Let Input widgets handle all keys normally for typing
         if isinstance(focused, Input):
-            if event.key in ("up", "down"):
-                return
+            return
 
         if event.key in ("down", "j"):
             event.stop()

@@ -161,20 +161,14 @@ class LaunchBuilder(ModalScreen):
     def on_key(self, event: Key) -> None:
         """Intercept arrow keys for field navigation.
 
-        Up/Down and j/k move between fields. This prevents Select widgets
-        from capturing arrows for their own dropdown cycling.
-        Input widgets still get normal key handling for typing.
+        Up/Down move between fields (except in Input widgets where they
+        move the cursor). j/k are passed through to Input widgets for typing.
         """
         focused = self.focused
 
-        # Let Input widgets handle all keys normally (for typing)
+        # Let Input widgets handle all keys normally for typing
         if isinstance(focused, Input):
-            if event.key in ("up", "down", "k", "j"):
-                # But still allow j/k to navigate out of inputs
-                if event.key in ("j", "k"):
-                    pass  # fall through to navigation below
-                else:
-                    return  # let up/down work normally in inputs (cursor)
+            return
 
         if event.key in ("down", "j"):
             event.stop()
