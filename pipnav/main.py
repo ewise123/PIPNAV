@@ -998,8 +998,16 @@ class PipNavApp(App):
 
     def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:
         """Return configured profiles plus the built-in default profile."""
-        profiles: list[WorkspaceProfile] = [DEFAULT_PROFILE]
-        seen = {DEFAULT_PROFILE.name.lower()}
+        default_profile = next(
+            (
+                profile
+                for profile in self._profiles
+                if profile.name.lower() == DEFAULT_PROFILE.name.lower()
+            ),
+            DEFAULT_PROFILE,
+        )
+        profiles: list[WorkspaceProfile] = [default_profile]
+        seen = {default_profile.name.lower()}
 
         for profile in self._profiles:
             if profile.name.lower() in seen:

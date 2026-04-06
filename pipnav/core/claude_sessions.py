@@ -54,8 +54,8 @@ def discover_sessions_for_project(project_path: Path) -> tuple[ClaudeSession, ..
     except OSError as exc:
         logger.error("Error scanning sessions for %s: %s", project_path, exc)
 
-    # Sort by timestamp, most recent first
-    sessions.sort(key=lambda s: s.timestamp, reverse=True)
+    # Sort by last activity so resumed sessions stay at the top.
+    sessions.sort(key=lambda s: s.last_activity, reverse=True)
     return tuple(sessions)
 
 

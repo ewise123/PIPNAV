@@ -63,6 +63,7 @@ class ProjectList(Widget):
 
         path: Path
         name: str
+        user_initiated: bool = True
 
     @dataclass
     class Activated(Message):
@@ -80,6 +81,8 @@ class ProjectList(Widget):
 
     def set_projects(self, entries: tuple[ProjectEntry, ...]) -> None:
         """Update the project list with new entries."""
+        previous_index = self.highlighted_index
+        previous_entry = self.selected_entry
         self._entries = entries
         option_list = self.query_one("#project-options", ProjectOptionList)
         option_list.clear_options()
@@ -91,16 +94,30 @@ class ProjectList(Widget):
             label = f"  {padded_name} {badge}"
             option_list.add_option(Option(label, id=str(entry.path)))
 
-        # Select first item if available
+        # Restore the previous selection when possible so background refreshes
+        # don't yank the cursor back to the top.
         if entries:
-            option_list.highlighted = 0
-            self._fire_selected(0)
+            target_index = 0
+            if previous_entry is not None:
+                for index, entry in enumerate(entries):
+                    if entry.path == previous_entry.path:
+                        target_index = index
+                        break
+                else:
+                    if previous_index is not None and previous_index < len(entries):
+                        target_index = previous_index
+            elif previous_index is not None and previous_index < len(entries):
+                target_index = previous_index
+
+            with option_list.prevent(OptionList.OptionHighlighted):
+                option_list.highlighted = target_index
+            self._fire_selected(target_index, user_initiated=False)
 
     @on(OptionList.OptionHighlighted, "#project-options")
     def _on_highlight(self, event: OptionList.OptionHighlighted) -> None:
         """Fire Selected message when highlight changes."""
         if event.option_index is not None:
-            self._fire_selected(event.option_index)
+            self._fire_selected(event.option_index, user_initiated=True)
 
     @on(OptionList.OptionSelected, "#project-options")
     def _on_selected(self, event: OptionList.OptionSelected) -> None:
@@ -109,11 +126,17 @@ class ProjectList(Widget):
             entry = self._entries[event.option_index]
             self.post_message(self.Activated(path=entry.path, name=entry.name))
 
-    def _fire_selected(self, index: int) -> None:
+    def _fire_selected(self, index: int, user_initiated: bool = True) -> None:
         """Post a Selected message for the given index."""
         if 0 <= index < len(self._entries):
             entry = self._entries[index]
-            self.post_message(self.Selected(path=entry.path, name=entry.name))
+            self.post_message(
+                self.Selected(
+                    path=entry.path,
+                    name=entry.name,
+                    user_initiated=user_initiated,
+                )
+            )
 
     def focus_list(self) -> None:
         """Focus the inner option list."""
