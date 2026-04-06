@@ -173,13 +173,19 @@ def _index_project(project: ProjectInfo) -> CachedProjectState:
 
 def full_scan(roots: tuple[str, ...]) -> IndexCache:
     """Perform a full scan of all projects. Expensive but complete."""
+    logger = get_logger()
     projects = discover_projects(roots)
-    states = tuple(_index_project(p) for p in projects)
+    states: list[CachedProjectState] = []
+    for p in projects:
+        try:
+            states.append(_index_project(p))
+        except Exception as exc:
+            logger.debug("Error indexing project %s: %s", p.path, exc)
 
     return IndexCache(
         version=CACHE_VERSION,
         roots=_normalize_roots(roots),
-        projects=states,
+        projects=tuple(states),
         last_full_scan=datetime.now(),
     )
 
@@ -191,6 +197,7 @@ def incremental_update(
 ) -> IndexCache:
     """Re-index only stale projects. Projects whose directory mtime changed
     or whose cache entry is older than ttl_seconds get refreshed."""
+    logger = get_logger()
     now = datetime.now()
     projects = discover_projects(roots)
 
@@ -222,7 +229,12 @@ def incremental_update(
                 needs_refresh = True
 
         if needs_refresh:
-            updated.append(_index_project(project))
+            try:
+                updated.append(_index_project(project))
+            except Exception as exc:
+                logger.debug("Error refreshing project %s: %s", project.path, exc)
+                if cached is not None:
+                    updated.append(cached)
         else:
             updated.append(cached)
 
@@ -271,6 +283,7 @@ class ProjectIndexer:
             return None
 
         self._cache = cache
+        self._last_refreshed = cache.last_full_scan
         return self._cache
 
     def refresh(self, force_full: bool = False) -> IndexCache:

@@ -2,10 +2,26 @@
 
 import time
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
 from pipnav.core.watcher import FileWatcher, _get_watched_paths, _snapshot_mtimes
+
+
+def _wait_for(
+    predicate: Callable[[], bool],
+    timeout: float = 3.0,
+    interval: float = 0.05,
+) -> None:
+    """Poll until predicate returns True or timeout expires."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(interval)
+    # Final check — let the assertion in the caller fail with context
+    return
 
 
 @pytest.fixture(autouse=True)
@@ -122,8 +138,7 @@ class TestFileWatcher:
         new_project = tmp_path / "new-project"
         new_project.mkdir()
 
-        # Wait for watcher to detect it
-        time.sleep(2.5)
+        _wait_for(lambda: len(changes_detected) > 0)
         watcher.stop()
 
         assert len(changes_detected) > 0
@@ -152,13 +167,13 @@ class TestFileWatcher:
         )
         watcher.start()
         # Wait for initial snapshot to settle
-        time.sleep(0.5)
+        _wait_for(lambda: False, timeout=0.5)
 
         # Append to session file (simulates new message)
         with session_file.open("a", encoding="utf-8") as f:
             f.write("{\"type\":\"assistant\"}\n")
 
-        time.sleep(2.5)
+        _wait_for(lambda: len(changes_detected) > 0)
         watcher.stop()
 
         assert len(changes_detected) > 0
@@ -175,7 +190,7 @@ class TestFileWatcher:
             on_change=on_change,
         )
         watcher.start()
-        time.sleep(2.5)
+        _wait_for(lambda: False, timeout=2.5)
         watcher.stop()
 
         # No changes should have been detected

@@ -126,16 +126,19 @@ class FileWatcher:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_change: datetime | None = None
+        self._roots_lock = threading.Lock()
 
     @property
     def roots(self) -> tuple[str, ...]:
-        return self._roots
+        with self._roots_lock:
+            return self._roots
 
     @roots.setter
     def roots(self, value: tuple[str, ...]) -> None:
-        self._roots = value
-        # Reset snapshot so next poll detects everything as new
-        self._last_snapshot = {}
+        with self._roots_lock:
+            self._roots = value
+            # Reset snapshot so next poll detects everything as new
+            self._last_snapshot = {}
 
     @property
     def last_change(self) -> datetime | None:
@@ -175,7 +178,9 @@ class FileWatcher:
                 break
 
             try:
-                watched = _get_watched_paths(self._roots)
+                with self._roots_lock:
+                    roots = self._roots
+                watched = _get_watched_paths(roots)
                 current = _snapshot_mtimes(watched)
 
                 if self._has_changes(current):

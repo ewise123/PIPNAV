@@ -107,7 +107,7 @@ def discover_all_sessions(
                 enriched.append(
                     enrich_session(session, project.name, branch)
                 )
-        except Exception as exc:
+        except (OSError, ValueError, KeyError) as exc:
             logger.debug(
                 "Error discovering sessions for %s: %s", project.path, exc
             )

@@ -153,9 +153,11 @@ class LaunchBuilder(ModalScreen):
 
     def on_mount(self) -> None:
         """Focus the first field."""
+        from textual.css.query import NoMatches
+
         try:
             self.query_one(_FIELD_IDS[0]).focus()
-        except Exception:
+        except NoMatches:
             pass
 
     def on_key(self, event: Key) -> None:

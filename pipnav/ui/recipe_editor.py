@@ -168,9 +168,11 @@ class RecipeEditor(ModalScreen):
 
     def on_mount(self) -> None:
         """Focus the first field."""
+        from textual.css.query import NoMatches
+
         try:
             self.query_one(_FIELD_IDS[0]).focus()
-        except Exception:
+        except NoMatches:
             pass
 
     def on_key(self, event: Key) -> None:
@@ -222,11 +224,11 @@ class RecipeEditor(ModalScreen):
         except Exception:
             pass
 
-    def _build_recipe(self) -> LaunchRecipe | None:
-        """Build a LaunchRecipe from form state."""
+    def _build_recipe(self) -> tuple[LaunchRecipe | None, str]:
+        """Build a LaunchRecipe from form state. Returns (recipe, error)."""
         name = self.query_one("#name-input", Input).value.strip()
         if not name:
-            return None
+            return None, "name"
 
         desc = self.query_one("#desc-input", Input).value.strip()
         action_sel = self.query_one("#action-select", Select)
@@ -239,25 +241,30 @@ class RecipeEditor(ModalScreen):
         try:
             flags = _split_flag_string(flags_input.value)
         except ValueError:
-            self.notify(
-                "Extra Flags must use valid shell-style quoting",
-                severity="warning",
-            )
-            return None
+            return None, "flags"
 
-        return LaunchRecipe(
+        recipe = LaunchRecipe(
             name=name,
             description=desc,
             action=action,
             claude_flags=flags,
             permission_mode=perm,
         )
+        return recipe, ""
 
     @on(Button.Pressed, "#save-btn")
     def _on_save(self, event: Button.Pressed) -> None:
-        recipe = self._build_recipe()
-        if recipe is None:
+        recipe, error = self._build_recipe()
+        if error == "name":
             self.notify("Name is required", severity="warning")
+            return
+        if error == "flags":
+            self.notify(
+                "Extra Flags must use valid shell-style quoting",
+                severity="warning",
+            )
+            return
+        if recipe is None:
             return
         self.dismiss()
         self.post_message(self.Saved(recipe))

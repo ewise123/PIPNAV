@@ -38,7 +38,6 @@ def _config_to_dict(config: PipNavConfig) -> dict:
     # Convert tuples to lists for JSON
     d["project_roots"] = list(config.project_roots)
     d["tags"] = list(config.tags)
-    # Exclude internal/transient fields from JSON
     return d
 
 
