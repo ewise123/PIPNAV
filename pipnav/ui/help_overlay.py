@@ -61,8 +61,6 @@ class HelpScreen(ModalScreen):
         background: $surface;
         color: $primary;
         padding: 1 2;
-        scrollbar-color: $primary;
-        scrollbar-color-hover: $primary;
     }
     """
 
