@@ -128,6 +128,11 @@ class SessionCenterTab(VerticalScroll):
         prev_session = self.get_selected_session()
         table.clear()
 
+        # Always update filter bar, even when no rows to display
+        self.query_one("#session-filter-bar", Static).update(
+            self._render_filter_bar()
+        )
+
         if not self._visible_sessions:
             if self._all_sessions:
                 self._show_placeholder(
@@ -169,10 +174,6 @@ class SessionCenterTab(VerticalScroll):
         elif prev_row is not None and prev_row < len(self._visible_sessions):
             table.move_cursor(row=prev_row)
 
-        # Update filter bar
-        self.query_one("#session-filter-bar", Static).update(
-            self._render_filter_bar()
-        )
 
     def _show_placeholder(self, text: str) -> None:
         """Show placeholder text and hide the table."""
