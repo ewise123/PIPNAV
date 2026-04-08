@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from pipnav.core.config import PipNavConfig
 from pipnav.core.profiles import DEFAULT_PROFILE, LaunchRecipe, WorkspaceProfile
 from pipnav.core.projects import ProjectInfo
+from pipnav.core.memory import ProjectMemory
 from pipnav.core.notes import ProjectNotes
 from pipnav.main import PipNavApp
 
@@ -227,11 +228,11 @@ def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> N
 
     app._git_statuses = {}
     app._sessions = {}
-    app._notes = {"/tmp/demo": ProjectNotes(note="note")}
+    app._memory = {"/tmp/demo": ProjectMemory(note="note")}
 
     def query_one(selector, *_args, **_kwargs):
         if selector == "#STAT":
-            return SimpleNamespace(update_detail=lambda *args: detail_calls.append(args))
+            return SimpleNamespace(update_detail=lambda *args, **kwargs: detail_calls.append(args))
         if selector == "#FILES":
             return files_tab
         if selector == "#LOG":

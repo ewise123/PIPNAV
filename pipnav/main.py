@@ -29,7 +29,15 @@ from pipnav.core.profiles import (
     get_profile_by_name,
     load_profiles,
 )
-from pipnav.core.notes import ProjectNotes, cycle_tag, load_notes, set_note
+from pipnav.core.memory import (
+    ProjectMemory,
+    cycle_tag,
+    load_memory,
+    memory_to_notes,
+    save_memory,
+    set_note,
+)
+from pipnav.core.notes import ProjectNotes
 from pipnav.core.projects import ProjectInfo, discover_projects, is_stale
 from pipnav.core.search import filter_projects
 from pipnav.core.sessions import SessionInfo, load_sessions, record_session
@@ -47,6 +55,7 @@ from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
 from pipnav.ui.launch_builder import LaunchBuilder
+from pipnav.ui.memory_editor import MemoryEditor
 from pipnav.ui.profile_switcher import ProfileSwitcher
 from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
@@ -152,7 +161,8 @@ class PipNavApp(App):
         ("5", "show_tab('CONSOLE')", "CONSOLE"),
         ("6", "show_tab('INV')", "INV"),
         ("t", "cycle_tag", "Tag"),
-        ("n", "edit_note", "Note"),
+        ("n", "edit_memory", "Memory"),
+        ("N", "edit_note", "Note"),
         ("p", "cycle_color_scheme", "Color"),
         ("full_stop", "refresh", "Refresh"),
         ("grave_accent", "toggle_sound", "Sound"),
@@ -167,7 +177,7 @@ class PipNavApp(App):
     _CHAR_ACTIONS = frozenset({
         "quit", "cursor_down", "cursor_up", "focus_right", "focus_left",
         "open_vscode", "open_claude", "resume_claude", "start_search",
-        "cycle_tag", "edit_note", "toggle_sound", "show_help",
+        "cycle_tag", "edit_memory", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme", "session_filter", "session_sort",
         "switch_profile", "pick_recipe",
     })
@@ -182,7 +192,7 @@ class PipNavApp(App):
         self._all_projects: tuple[ProjectInfo, ...] = ()
         self._git_statuses: dict[str, GitStatus | None] = {}
         self._sessions: dict[str, SessionInfo] = {}
-        self._notes: dict[str, ProjectNotes] = {}
+        self._memory: dict[str, ProjectMemory] = {}
         self._current_tab: str = "STAT"
         self._editing_note: bool = False
         self._nav_stack: list[tuple[str, ...]] = []
@@ -217,7 +227,7 @@ class PipNavApp(App):
         self._config = load_config()
 
         self._sessions = load_sessions()
-        self._notes = load_notes()
+        self._memory = load_memory()
 
         # Load workspace profiles and apply active profile
         self._profiles = load_profiles()
@@ -513,11 +523,12 @@ class PipNavApp(App):
 
         git_status = self._git_statuses.get(str(path))
         session = self._sessions.get(str(path))
-        notes = self._notes.get(str(path), ProjectNotes())
+        notes = memory_to_notes(self._memory.get(str(path), ProjectMemory()))
         readme = read_readme_preview(path)
 
+        mem = self._memory.get(str(path))
         self.query_one("#STAT", ProjectDetail).update_detail(
-            name, path, git_status, session, notes, readme
+            name, path, git_status, session, notes, readme, memory=mem
         )
         self.query_one("#FILES", FilesTab).project_path = path
         self.query_one("#LOG", LogTab).project_path = path
@@ -618,17 +629,35 @@ class PipNavApp(App):
         """Cycle tag on the selected project."""
         path = self._selected_project_path()
         if path:
-            self._notes = cycle_tag(str(path), self._config.tags, self._notes)
+            self._memory = cycle_tag(str(path), self._config.tags, self._memory)
             self._refresh_selected_detail()
 
+    def action_edit_memory(self) -> None:
+        """Open the memory editor modal for the selected project."""
+        path = self._selected_project_path()
+        if not path:
+            return
+        mem = self._memory.get(str(path), ProjectMemory())
+        self.push_screen(MemoryEditor(mem, project_name=path.name))
+
+    @on(MemoryEditor.Saved)
+    def _on_memory_saved(self, event: MemoryEditor.Saved) -> None:
+        """Save updated memory for the selected project."""
+        path = self._selected_project_path()
+        if path:
+            self._memory = {**self._memory, str(path): event.memory}
+            save_memory(self._memory)
+            self._refresh_selected_detail()
+            self.notify("Memory saved")
+
     def action_edit_note(self) -> None:
-        """Show inline note editor."""
+        """Show inline note editor (quick note)."""
         path = self._selected_project_path()
         if not path:
             return
 
         note_input = self.query_one("#note-input", PipBoyInput)
-        current_notes = self._notes.get(str(path), ProjectNotes())
+        current_notes = memory_to_notes(self._memory.get(str(path), ProjectMemory()))
         note_input.value = current_notes.note
         note_input.display = True
         note_input.focus()
@@ -639,7 +668,7 @@ class PipNavApp(App):
         """Save note and hide the input."""
         path = self._selected_project_path()
         if path:
-            self._notes = set_note(str(path), event.value, self._notes)
+            self._memory = set_note(str(path), event.value, self._memory)
             self._refresh_selected_detail()
 
         note_input = self.query_one("#note-input", PipBoyInput)
@@ -853,7 +882,7 @@ class PipNavApp(App):
     def action_refresh(self) -> None:
         """Refresh all project metadata (forces full re-scan)."""
         self._sessions = load_sessions()
-        self._notes = load_notes()
+        self._memory = load_memory()
         if self._indexer is not None:
             self._indexer.invalidate()
         self.notify(random_loading_message())
@@ -996,10 +1025,11 @@ class PipNavApp(App):
             path = entry.path
             git_status = self._git_statuses.get(str(path))
             session = self._sessions.get(str(path))
-            notes = self._notes.get(str(path), ProjectNotes())
+            notes = memory_to_notes(self._memory.get(str(path), ProjectMemory()))
+            mem = self._memory.get(str(path))
             readme = read_readme_preview(path)
             self.query_one("#STAT", ProjectDetail).update_detail(
-                entry.name, path, git_status, session, notes, readme
+                entry.name, path, git_status, session, notes, readme, memory=mem
             )
 
     def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:

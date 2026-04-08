@@ -12,6 +12,7 @@ from textual.reactive import reactive
 from textual.widgets import Sparkline, Static
 
 from pipnav.core.git import GitStatus, get_commit_frequency
+from pipnav.core.memory import ProjectMemory
 from pipnav.core.notes import ProjectNotes
 from pipnav.core.sessions import SessionInfo
 from pipnav.core.utils import time_ago
@@ -28,6 +29,7 @@ class ProjectDetail(VerticalScroll):
         self._git_status: GitStatus | None = None
         self._session: SessionInfo | None = None
         self._notes: ProjectNotes = ProjectNotes()
+        self._memory: ProjectMemory | None = None
         self._readme: str = ""
 
     def compose(self) -> ComposeResult:
@@ -48,11 +50,13 @@ class ProjectDetail(VerticalScroll):
         session: SessionInfo | None,
         notes: ProjectNotes,
         readme: str,
+        memory: ProjectMemory | None = None,
     ) -> None:
         """Update all detail fields and re-render."""
         self._git_status = git_status
         self._session = session
         self._notes = notes
+        self._memory = memory
         self._readme = readme
         self.project_name = name
         self.project_path = path
@@ -136,6 +140,18 @@ class ProjectDetail(VerticalScroll):
         if self._notes.note:
             lines.append("")
             lines.append(f"[bold]NOTE:[/]    {self._notes.note}")
+
+        # Show memory fields if populated
+        mem = self._memory
+        if mem is not None:
+            if mem.handoff:
+                lines.append(f"[bold]HANDOFF:[/] {mem.handoff}")
+            if mem.next_action:
+                lines.append(f"[bold]NEXT:[/]    {mem.next_action}")
+            if mem.gotchas:
+                lines.append(f"[bold]GOTCHAS:[/] {'; '.join(mem.gotchas)}")
+            if mem.prompts:
+                lines.append(f"[bold]PROMPTS:[/] {'; '.join(mem.prompts)}")
 
         self._update_content("\n".join(lines))
 
