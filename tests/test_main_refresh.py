@@ -263,7 +263,10 @@ def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> N
     detail_calls = []
     files_tab = SimpleNamespace(project_path=None)
     log_tab = SimpleNamespace(project_path=None)
-    sessions_tab = SimpleNamespace(project_path=None)
+    console_tab_filters: list[Path | None] = []
+    console_tab = SimpleNamespace(
+        set_project_filter=lambda path: console_tab_filters.append(path),
+    )
 
     monkeypatch.setattr(
         "pipnav.main.play_sound",
@@ -282,8 +285,8 @@ def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> N
             return files_tab
         if selector == "#LOG":
             return log_tab
-        if selector == "#SESSIONS":
-            return sessions_tab
+        if selector == "#CONSOLE":
+            return console_tab
         raise AssertionError(selector)
 
     monkeypatch.setattr(app, "query_one", query_one)
@@ -299,7 +302,7 @@ def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> N
     assert "sound" not in detail_calls
     assert files_tab.project_path == Path("/tmp/demo")
     assert log_tab.project_path == Path("/tmp/demo")
-    assert sessions_tab.project_path == Path("/tmp/demo")
+    assert console_tab_filters == [Path("/tmp/demo")]
     assert any(
         call[0] == "demo" and call[1] == Path("/tmp/demo")
         for call in detail_calls
