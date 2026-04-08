@@ -344,6 +344,13 @@ DataTable > .datatable--odd-row {
     background: $surface;
 }
 
+/* ── Help Overlay ─────────────────────────────────────────── */
+
+HelpScreen #help-container {
+    scrollbar-color: $primary;
+    scrollbar-color-hover: $primary;
+}
+
 /* ── Notifications ─────────────────────────────────────────── */
 
 Toast {
