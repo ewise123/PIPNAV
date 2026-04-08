@@ -202,6 +202,7 @@ class PipNavApp(App):
         self._profiles: tuple[WorkspaceProfile, ...] = ()
         self._active_profile: WorkspaceProfile = DEFAULT_PROFILE
         self._background_session_center_refresh: bool = False
+        self._console_project_scoped: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -529,7 +530,8 @@ class PipNavApp(App):
         )
         self.query_one("#FILES", FilesTab).project_path = path
         self.query_one("#LOG", LogTab).project_path = path
-        self.query_one("#CONSOLE", SessionCenterTab).set_project_filter(path)
+        if self._console_project_scoped:
+            self._set_console_project_filter(path)
 
     def _selected_project_path(self) -> Path | None:
         """Return the path of the currently selected project."""
@@ -546,10 +548,14 @@ class PipNavApp(App):
             self._current_tab = tabs[(idx + 1) % len(tabs)]
         except ValueError:
             self._current_tab = "STAT"
+        if self._current_tab == "CONSOLE":
+            self._set_console_project_filter(None)
         self._apply_tab()
 
     def action_show_tab(self, tab: str) -> None:
         """Switch to a specific tab."""
+        if tab == "CONSOLE":
+            self._set_console_project_filter(None)
         self._current_tab = tab
         self._apply_tab()
 
@@ -760,7 +766,9 @@ class PipNavApp(App):
             )
         elif recipe.action == "resume_pick":
             # Switch to CONSOLE tab so user can pick a session
-            self.action_show_tab("CONSOLE")
+            self._set_console_project_filter(path)
+            self._current_tab = "CONSOLE"
+            self._apply_tab()
             return
         elif recipe.action == "remote_control":
             ok, err = launch_remote_control(
@@ -1012,6 +1020,18 @@ class PipNavApp(App):
             self.query_one("#STAT", ProjectDetail).update_detail(
                 entry.name, path, git_status, session, notes, readme, memory=mem
             )
+
+    def _set_console_project_filter(self, path: Path | None) -> None:
+        """Switch the CONSOLE tab between project-scoped and global views."""
+        self._console_project_scoped = path is not None
+        try:
+            console = self.query_one("#CONSOLE", SessionCenterTab)
+            if path is None:
+                console.clear_project_filter()
+            else:
+                console.set_project_filter(path)
+        except Exception:
+            pass
 
     def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:
         """Return configured profiles plus the built-in default profile."""
