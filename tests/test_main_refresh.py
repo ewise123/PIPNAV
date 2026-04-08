@@ -179,6 +179,60 @@ def test_profile_selection_uses_config_scheme_for_default_profile(
     assert loads == [True]
 
 
+def test_profile_saved_rename_replaces_original_active_profile(
+    monkeypatch,
+) -> None:
+    app = PipNavApp()
+    loads: list[bool] = []
+    saved_profiles: list[tuple[WorkspaceProfile, ...]] = []
+
+    monkeypatch.setattr(
+        "pipnav.main.update_config",
+        lambda config, **changes: replace(config, **changes),
+    )
+    monkeypatch.setattr(
+        "pipnav.core.profiles.save_profiles",
+        lambda profiles: saved_profiles.append(profiles),
+    )
+    monkeypatch.setattr(app, "query_one", lambda *args, **kwargs: _FakeStatusBar())
+    monkeypatch.setattr(app, "_load_projects", lambda *args, **kwargs: loads.append(True))
+    monkeypatch.setattr(app, "notify", lambda *args, **kwargs: None)
+
+    old_profile = WorkspaceProfile(
+        name="work",
+        roots=("~/work",),
+        color_scheme="blue",
+    )
+    renamed_profile = WorkspaceProfile(
+        name="deep-work",
+        roots=("~/deep-work",),
+        color_scheme="amber",
+    )
+
+    app._profiles = (old_profile, WorkspaceProfile(name="personal"))
+    app._active_profile = old_profile
+    app._config = PipNavConfig(
+        active_profile="work",
+        project_roots=("~/projects",),
+        color_scheme="green",
+    )
+    app._current_roots = ("~/work",)
+    app._watcher = SimpleNamespace(roots=())
+    app._indexer = SimpleNamespace(invalidate=lambda: None)
+
+    app._on_profile_saved(
+        SimpleNamespace(profile=renamed_profile, original_name="work")
+    )
+
+    assert [profile.name for profile in app._profiles] == ["personal", "deep-work"]
+    assert saved_profiles == [app._profiles]
+    assert app._active_profile == renamed_profile
+    assert app._config.active_profile == "deep-work"
+    assert app._current_roots == ("~/deep-work",)
+    assert app.theme == "pipboy-amber"
+    assert loads == [True]
+
+
 def test_recipe_selected_passes_recipe_flags_to_launcher(
     monkeypatch,
 ) -> None:

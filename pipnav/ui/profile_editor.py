@@ -47,7 +47,7 @@ def format_comma_list(items: tuple[str, ...]) -> str:
 class ProfileEditor(ModalScreen):
     """Modal for creating or editing a workspace profile.
 
-    Navigation: Up/Down or j/k move between fields.
+    Navigation: Up/Down move between fields.
     Space or Enter interact with the focused field.
     """
 
@@ -98,6 +98,7 @@ class ProfileEditor(ModalScreen):
         """Fired when a profile is saved."""
 
         profile: WorkspaceProfile
+        original_name: str | None = None
 
     def __init__(self, profile: WorkspaceProfile | None = None) -> None:
         super().__init__()
@@ -110,7 +111,7 @@ class ProfileEditor(ModalScreen):
         with Vertical(id="profile-editor-container"):
             yield Static(
                 f"[bold]{title}[/]\n"
-                f"[dim]j/k:navigate  Enter/Space:select  Esc:cancel[/]\n"
+                f"[dim]Up/Down:navigate  Enter/Space:select  Esc:cancel[/]\n"
             )
 
             with Horizontal(classes="field-row"):
@@ -169,20 +170,31 @@ class ProfileEditor(ModalScreen):
     def on_key(self, event: Key) -> None:
         """Intercept arrow keys for field navigation.
 
-        Up/Down move between fields. j/k are passed through to Input
-        widgets for typing.
+        Up/Down move between fields even while editing text inputs.
+        j/k remain available when a non-text field is focused.
         """
         focused = self.focused
 
-        # Let Input widgets handle all keys normally for typing
-        if isinstance(focused, Input):
-            return
-
-        if event.key in ("down", "j"):
+        if event.key == "down":
             event.stop()
             event.prevent_default()
             self._focus_next()
-        elif event.key in ("up", "k"):
+            return
+        if event.key == "up":
+            event.stop()
+            event.prevent_default()
+            self._focus_prev()
+            return
+
+        # Let Input widgets handle character keys normally for typing.
+        if isinstance(focused, Input):
+            return
+
+        if event.key == "j":
+            event.stop()
+            event.prevent_default()
+            self._focus_next()
+        elif event.key == "k":
             event.stop()
             event.prevent_default()
             self._focus_prev()
@@ -258,7 +270,8 @@ class ProfileEditor(ModalScreen):
         if profile is None:
             return
         self.dismiss()
-        self.post_message(self.Saved(profile))
+        original_name = self._profile.name if self._profile is not None else None
+        self.post_message(self.Saved(profile, original_name=original_name))
 
     @on(Button.Pressed, "#profile-cancel-btn")
     def _on_cancel(self, event: Button.Pressed) -> None:

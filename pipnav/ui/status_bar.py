@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from textual.events import Resize
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -36,6 +37,10 @@ class StatusBar(Static):
     def on_mount(self) -> None:
         """Start clock update timer."""
         self._timer = self.set_interval(30, self._tick)
+        self._refresh_display()
+
+    def on_resize(self, event: Resize) -> None:
+        """Refresh immediately when the terminal size changes."""
         self._refresh_display()
 
     def _tick(self) -> None:

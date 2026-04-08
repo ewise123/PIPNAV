@@ -750,15 +750,23 @@ class PipNavApp(App):
         from pipnav.core.profiles import save_profiles
 
         profile = event.profile
+        original_name = event.original_name or profile.name
+        original_key = original_name.lower()
 
         # Upsert: replace by name or append
-        existing = tuple(p for p in self._profiles if p.name != profile.name)
+        existing = tuple(
+            p for p in self._profiles if p.name.lower() != original_key
+        )
         self._profiles = (*existing, profile)
         save_profiles(self._profiles)
 
         # If the active profile was edited, re-apply it
-        if profile.name == self._active_profile.name:
+        if self._active_profile.name.lower() == original_key:
             self._active_profile = profile
+            self._config = update_config(
+                self._config,
+                active_profile=profile.name,
+            )
 
             # Update roots
             self._nav_stack.clear()

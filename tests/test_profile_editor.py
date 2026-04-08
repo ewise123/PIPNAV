@@ -1,10 +1,10 @@
 """Tests for profile editor data parsing logic."""
 
+from types import SimpleNamespace
+
 from pipnav.core.profiles import WorkspaceProfile
-from pipnav.ui.profile_editor import (
-    format_comma_list,
-    parse_comma_list,
-)
+from pipnav.ui.profile_editor import ProfileEditor, format_comma_list, parse_comma_list
+from textual.widgets import Input
 
 
 class TestParseCommaList:
@@ -111,3 +111,29 @@ class TestBuildProfileFromInputs:
         formatted = format_comma_list(original)
         parsed = parse_comma_list(formatted)
         assert parsed == original
+
+
+def test_arrow_navigation_moves_between_fields_from_input_focus(
+    monkeypatch,
+) -> None:
+    editor = ProfileEditor()
+    calls: list[str] = []
+    focused_input = Input()
+
+    monkeypatch.setattr(
+        ProfileEditor,
+        "focused",
+        property(lambda self: focused_input),
+        raising=False,
+    )
+    monkeypatch.setattr(editor, "_focus_next", lambda: calls.append("next"))
+
+    event = SimpleNamespace(
+        key="down",
+        stop=lambda: calls.append("stop"),
+        prevent_default=lambda: calls.append("prevent"),
+    )
+
+    editor.on_key(event)
+
+    assert calls == ["stop", "prevent", "next"]
