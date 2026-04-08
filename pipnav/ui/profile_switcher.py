@@ -14,6 +14,10 @@ from textual.widgets.option_list import Option
 
 from pipnav.core.profiles import WorkspaceProfile
 
+# Special option IDs for edit/new actions
+_EDIT_OPTION_ID = "__edit_profile__"
+_NEW_OPTION_ID = "__new_profile__"
+
 
 class ProfileSwitcher(ModalScreen):
     """Modal for selecting a workspace profile."""
@@ -51,6 +55,16 @@ class ProfileSwitcher(ModalScreen):
 
         profile: WorkspaceProfile
 
+    @dataclass
+    class EditRequested(Message):
+        """Fired when user wants to edit the active profile."""
+
+        profile: WorkspaceProfile
+
+    @dataclass
+    class NewRequested(Message):
+        """Fired when user wants to create a new profile."""
+
     def __init__(
         self,
         profiles: tuple[WorkspaceProfile, ...],
@@ -79,11 +93,32 @@ class ProfileSwitcher(ModalScreen):
         if not self._profiles:
             option_list.add_option(Option("  [dim]No profiles configured[/]"))
 
+        # Add visual separator and edit/new options
+        option_list.add_option(Option("  [dim]────────────────────[/]", id="__sep__"))
+        edit_label = f"  Edit {self._active_name}" if self._active_name else "  Edit profile"
+        option_list.add_option(Option(edit_label, id=_EDIT_OPTION_ID))
+        option_list.add_option(Option("  New Profile...", id=_NEW_OPTION_ID))
+
         option_list.focus()
 
     @on(OptionList.OptionSelected, "#profile-options")
     def _on_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option_index is not None and 0 <= event.option_index < len(self._profiles):
+        option = event.option
+        if option.id == "__sep__":
+            return
+        if option.id == _EDIT_OPTION_ID:
+            # Find the active profile to edit
+            active = next(
+                (p for p in self._profiles if p.name == self._active_name),
+                None,
+            )
+            if active is not None:
+                self.dismiss()
+                self.post_message(self.EditRequested(active))
+        elif option.id == _NEW_OPTION_ID:
+            self.dismiss()
+            self.post_message(self.NewRequested())
+        elif event.option_index is not None and 0 <= event.option_index < len(self._profiles):
             self.dismiss()
             self.post_message(self.Selected(self._profiles[event.option_index]))
 
