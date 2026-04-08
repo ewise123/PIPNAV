@@ -19,7 +19,15 @@ pipnav = "pipnav.main:main"
 include = ["pipnav*"]
 
 [tool.setuptools.package-data]
-pipnav = ["ui/*.tcss", "sounds/*.mp3", "sounds/*.wav"]
+pipnav = [
+    "ui/*.tcss",
+    "sounds/*.cs",
+    "sounds/*.mp3",
+    "sounds/*.ps1",
+    "sounds/*.wav",
+    "vendor/naudio/*.dll",
+    "vendor/naudio/*.txt",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
