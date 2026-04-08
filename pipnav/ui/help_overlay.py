@@ -1,7 +1,7 @@
 """Help overlay — keybinding reference modal."""
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -42,7 +42,7 @@ HELP_TEXT = """\
   ?                Show this help
   q or Esc         Quit
 
-[dim]Press Esc or ? to close[/]\
+[dim]↑/↓ to scroll · Esc or ? to close[/]\
 """
 
 
@@ -61,6 +61,8 @@ class HelpScreen(ModalScreen):
         background: $surface;
         color: $primary;
         padding: 1 2;
+        scrollbar-color: $primary;
+        scrollbar-color-hover: $primary;
     }
     """
 
@@ -70,7 +72,7 @@ class HelpScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="help-container"):
+        with VerticalScroll(id="help-container"):
             yield Static(HELP_TEXT)
 
     def action_dismiss(self) -> None:
