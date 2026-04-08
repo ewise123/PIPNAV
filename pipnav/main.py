@@ -18,7 +18,7 @@ from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.indexer import ProjectIndexer
-from pipnav.core.launcher import launch_claude, launch_vscode
+from pipnav.core.launcher import launch_claude, launch_remote_control, launch_vscode
 from pipnav.core.logging import setup_logging
 from pipnav.core.profiles import (
     DEFAULT_PROFILE,
@@ -737,6 +737,12 @@ class PipNavApp(App):
             # Switch to SESSIONS tab so user can pick
             self.action_show_tab("SESSIONS")
             return
+        elif recipe.action == "remote_control":
+            ok, err = launch_remote_control(
+                path,
+                self._config.claude_command,
+                session_name=path.name,
+            )
         else:
             ok, err = launch_claude(
                 path,

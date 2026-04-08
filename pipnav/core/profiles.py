@@ -22,7 +22,12 @@ class LaunchRecipe:
 
     @property
     def display_label(self) -> str:
-        icon = {"launch": ">", "resume_latest": "R", "resume_pick": "?"}
+        icon = {
+            "launch": ">",
+            "resume_latest": "R",
+            "resume_pick": "?",
+            "remote_control": "~",
+        }
         return f"[{icon.get(self.action, '>')}] {self.name}"
 
 
@@ -62,6 +67,18 @@ BUILTIN_RECIPES: tuple[LaunchRecipe, ...] = (
         name="Resume Pick",
         description="Pick a session to resume",
         action="resume_pick",
+    ),
+    LaunchRecipe(
+        name="Remote Control",
+        description="Start remote control server (claude.ai/code)",
+        action="remote_control",
+    ),
+    LaunchRecipe(
+        name="Remote Interactive",
+        description="Launch interactive session with remote access",
+        action="launch",
+        claude_flags=("--remote-control",),
+        permission_mode="auto",
     ),
 )
 

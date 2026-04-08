@@ -3,7 +3,12 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from pipnav.core.launcher import LaunchOptions, launch_claude, launch_vscode
+from pipnav.core.launcher import (
+    LaunchOptions,
+    launch_claude,
+    launch_remote_control,
+    launch_vscode,
+)
 
 
 def test_launch_vscode_missing_command() -> None:
@@ -72,6 +77,50 @@ def test_launch_claude_forwards_extra_flags(mock_popen) -> None:
     assert "--model opus" in shell_cmd
     assert "--permission-mode plan" in shell_cmd
     assert "--permission-mode auto" not in shell_cmd
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_remote_control(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+
+    with patch("pipnav.core.launcher.shutil.which", side_effect=_which):
+        ok, err = launch_remote_control(
+            Path("/tmp/proj"),
+            spawn_mode="worktree",
+            permission_mode="plan",
+            session_name="my-project",
+        )
+
+    assert ok is True
+    assert err == ""
+
+    shell_cmd = mock_popen.call_args[0][0][-1]
+    assert "remote-control" in shell_cmd
+    assert "--spawn worktree" in shell_cmd
+    assert "--permission-mode plan" in shell_cmd
+    assert "--name my-project" in shell_cmd
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_remote_control_defaults(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+
+    with patch("pipnav.core.launcher.shutil.which", side_effect=_which):
+        ok, err = launch_remote_control(Path("/tmp/proj"))
+
+    assert ok is True
+    shell_cmd = mock_popen.call_args[0][0][-1]
+    assert "--spawn same-dir" in shell_cmd
+    assert "--permission-mode auto" in shell_cmd
+
+
+def test_launch_remote_control_missing_wt() -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value=None):
+        ok, err = launch_remote_control(Path("/tmp"))
+    assert ok is False
+    assert "wt.exe" in err
 
 
 class TestLaunchOptions:

@@ -136,3 +136,57 @@ def launch_claude(
     except OSError as exc:
         logger.error("Failed to launch Claude Code: %s", exc)
         return False, str(exc)
+
+
+# Available spawn modes for remote control
+REMOTE_SPAWN_MODES = ("same-dir", "worktree", "session")
+
+
+def launch_remote_control(
+    path: Path,
+    command: str = "claude",
+    spawn_mode: str = "same-dir",
+    permission_mode: str = "auto",
+    session_name: str = "",
+    capacity: int | None = None,
+) -> tuple[bool, str]:
+    """Launch Claude remote-control server in a new Windows Terminal tab."""
+    logger = get_logger()
+
+    wt = shutil.which("wt.exe")
+    if not wt:
+        return False, "'wt.exe' not found — Windows Terminal required"
+
+    if not shutil.which(command):
+        return False, f"'{command}' not found on PATH"
+
+    try:
+        quoted_path = shlex.quote(str(path))
+        quoted_cmd = shlex.quote(command)
+
+        flags = ["remote-control", "--spawn", spawn_mode]
+        if permission_mode:
+            flags.extend(["--permission-mode", permission_mode])
+        if session_name:
+            flags.extend(["--name", session_name])
+        if capacity is not None:
+            flags.extend(["--capacity", str(capacity)])
+
+        quoted_flags = " ".join(shlex.quote(f) for f in flags)
+        shell_cmd = f"cd {quoted_path} && {quoted_cmd} {quoted_flags}"
+
+        args = [
+            wt, "-w", "0", "new-tab",
+            "wsl.exe", "--cd", str(path),
+            "--", "bash", "-ic", shell_cmd,
+        ]
+        subprocess.Popen(
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logger.info("Launched remote control in new tab: %s", shell_cmd)
+        return True, ""
+    except OSError as exc:
+        logger.error("Failed to launch remote control: %s", exc)
+        return False, str(exc)
