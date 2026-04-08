@@ -16,7 +16,7 @@ HELP_TEXT = """\
   Backspace        Go back to parent
   Esc              Go back / close / quit
   Tab              Cycle tabs
-  1-6              STAT / FILES / LOG / SESSIONS / CONSOLE / INV
+  1-5              STAT / FILES / LOG / CONSOLE / INV
 
 [bold]Actions[/]
   v                Open project in VS Code
