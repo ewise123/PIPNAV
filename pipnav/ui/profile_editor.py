@@ -100,6 +100,9 @@ class ProfileEditor(ModalScreen):
         profile: WorkspaceProfile
         original_name: str | None = None
 
+        def __post_init__(self) -> None:
+            super().__post_init__()
+
     def __init__(self, profile: WorkspaceProfile | None = None) -> None:
         super().__init__()
         self._profile = profile
@@ -140,9 +143,15 @@ class ProfileEditor(ModalScreen):
 
             with Horizontal(classes="field-row"):
                 yield Label("Color Scheme", classes="field-label")
+                valid_schemes = {v for _, v in COLOR_SCHEME_OPTIONS}
+                initial_color = (
+                    self._profile.color_scheme
+                    if editing and self._profile.color_scheme in valid_schemes
+                    else ""
+                )
                 yield Select(
                     COLOR_SCHEME_OPTIONS,
-                    value=self._profile.color_scheme if editing else "",
+                    value=initial_color,
                     id="profile-color-select",
                 )
 

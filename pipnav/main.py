@@ -752,6 +752,16 @@ class PipNavApp(App):
         profile = event.profile
         original_name = event.original_name or profile.name
         original_key = original_name.lower()
+        new_key = profile.name.lower()
+
+        # Reject rename to an existing profile name
+        if new_key != original_key and any(
+            p.name.lower() == new_key for p in self._profiles
+        ):
+            self.notify(
+                f"Profile '{profile.name}' already exists", severity="error"
+            )
+            return
 
         # Upsert: replace by name or append
         existing = tuple(
