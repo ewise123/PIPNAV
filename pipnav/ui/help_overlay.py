@@ -10,26 +10,33 @@ HELP_TEXT = """\
 
 [bold]Navigation[/]
   ↑/↓ or j/k      Navigate project list
-  l (right)        Focus right panel (files/log/sessions)
+  l (right)        Focus right panel
   h (left)         Focus back to project list
-  Enter            Drill into folder / select session
+  Enter            Drill into folder / activate
   Backspace        Go back to parent
   Esc              Go back / close / quit
-  Tab              Cycle tabs (STAT / FILES / LOG / SESSIONS / INV)
-  1-5              Jump to STAT / FILES / LOG / SESSIONS / INV
+  Tab              Cycle tabs
+  1-6              STAT / FILES / LOG / SESSIONS / CONSOLE / INV
 
 [bold]Actions[/]
   v                Open project in VS Code
-  c                Launch Claude Code (auto-mode)
+  c                Launch Claude Code
   r                Resume Claude Code session
+  a                Launch recipe picker
 
 [bold]Project[/]
   t                Cycle tag on selected project
-  n                Edit note for selected project
+  n                Edit project memory
+  N                Quick inline note
   /                Fuzzy search projects
   .                Refresh all project metadata
 
-[bold]Display[/]
+[bold]Console[/]
+  f                Cycle filter
+  o                Cycle sort mode
+
+[bold]Workspace[/]
+  w                Switch workspace profile
   p                Cycle color scheme (green/amber/blue/white)
   ~ or `           Toggle sound effects
   ?                Show this help

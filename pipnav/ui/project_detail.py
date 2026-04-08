@@ -131,27 +131,29 @@ class ProjectDetail(VerticalScroll):
         if self._notes.tags:
             lines.append(f"[bold]TAGS:[/]    {', '.join(self._notes.tags)}")
 
-        if self._readme:
+        # Show memory fields prominently after tags
+        mem = self._memory
+        if mem is not None and any((mem.handoff, mem.next_action, mem.gotchas, mem.prompts)):
             lines.append("")
-            lines.append("[bold]README:[/]  " + "─" * 40)
-            for readme_line in self._readme.split("\n"):
-                lines.append(f"  {readme_line}")
+            lines.append("[bold]── MEMORY ──[/]")
+            if mem.handoff:
+                lines.append(f"[bold yellow]HANDOFF:[/] {mem.handoff}")
+            if mem.next_action:
+                lines.append(f"[bold yellow]NEXT:[/]    {mem.next_action}")
+            if mem.gotchas:
+                lines.append(f"[bold]GOTCHAS:[/] {'; '.join(mem.gotchas)}")
+            if mem.prompts:
+                lines.append(f"[bold]PROMPTS:[/] {'; '.join(mem.prompts)}")
 
         if self._notes.note:
             lines.append("")
             lines.append(f"[bold]NOTE:[/]    {self._notes.note}")
 
-        # Show memory fields if populated
-        mem = self._memory
-        if mem is not None:
-            if mem.handoff:
-                lines.append(f"[bold]HANDOFF:[/] {mem.handoff}")
-            if mem.next_action:
-                lines.append(f"[bold]NEXT:[/]    {mem.next_action}")
-            if mem.gotchas:
-                lines.append(f"[bold]GOTCHAS:[/] {'; '.join(mem.gotchas)}")
-            if mem.prompts:
-                lines.append(f"[bold]PROMPTS:[/] {'; '.join(mem.prompts)}")
+        if self._readme:
+            lines.append("")
+            lines.append("[bold]README:[/]  " + "─" * 40)
+            for readme_line in self._readme.split("\n"):
+                lines.append(f"  {readme_line}")
 
         self._update_content("\n".join(lines))
 
