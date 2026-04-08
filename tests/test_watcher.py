@@ -107,6 +107,16 @@ class TestGetWatchedPaths:
         # Should not crash, just skip
         assert len(paths) == 0
 
+    def test_watches_memory_state_file(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "pipnav"
+        state_dir.mkdir(parents=True)
+        memory_file = state_dir / "memory.json"
+        memory_file.write_text("{}", encoding="utf-8")
+
+        paths = _get_watched_paths((str(tmp_path),))
+
+        assert memory_file in paths
+
 
 class TestFileWatcher:
     def test_start_and_stop(self, tmp_path: Path) -> None:

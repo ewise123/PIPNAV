@@ -116,6 +116,31 @@ def test_launch_remote_control_defaults(mock_popen) -> None:
     assert "--permission-mode auto" in shell_cmd
 
 
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_remote_control_forwards_extra_flags(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+
+    with patch("pipnav.core.launcher.shutil.which", side_effect=_which):
+        ok, err = launch_remote_control(
+            Path("/tmp/proj"),
+            session_name="default-name",
+            permission_mode="plan",
+            extra_flags=("--spawn", "worktree", "--name", "custom-name", "--capacity", "8"),
+        )
+
+    assert ok is True
+    assert err == ""
+
+    shell_cmd = mock_popen.call_args[0][0][-1]
+    assert "--spawn worktree" in shell_cmd
+    assert "--name custom-name" in shell_cmd
+    assert "--capacity 8" in shell_cmd
+    assert "--permission-mode plan" in shell_cmd
+    assert "--spawn same-dir" not in shell_cmd
+    assert "--name default-name" not in shell_cmd
+
+
 def test_launch_remote_control_missing_wt() -> None:
     with patch("pipnav.core.launcher.shutil.which", return_value=None):
         ok, err = launch_remote_control(Path("/tmp"))

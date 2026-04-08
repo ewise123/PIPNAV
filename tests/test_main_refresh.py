@@ -213,6 +213,51 @@ def test_recipe_selected_passes_recipe_flags_to_launcher(
     ]
 
 
+def test_remote_control_recipe_selected_passes_recipe_settings(
+    monkeypatch,
+) -> None:
+    app = PipNavApp()
+    calls = []
+
+    monkeypatch.setattr(app, "_selected_project_path", lambda: Path("/tmp/demo"))
+    monkeypatch.setattr(app, "notify", lambda *args, **kwargs: None)
+    monkeypatch.setattr("pipnav.main.play_sound", lambda *args, **kwargs: None)
+    monkeypatch.setattr("pipnav.main.record_session", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        "pipnav.main.launch_remote_control",
+        lambda path, command, **kwargs: (calls.append((path, command, kwargs)) or (True, "")),
+    )
+
+    app._config = PipNavConfig(claude_command="claude")
+    recipe = LaunchRecipe(
+        name="Remote Review",
+        action="remote_control",
+        claude_flags=("--spawn", "worktree", "--capacity", "8", "--name", "custom-name"),
+        permission_mode="plan",
+    )
+
+    app._on_recipe_selected(SimpleNamespace(recipe=recipe))
+
+    assert calls == [
+        (
+            Path("/tmp/demo"),
+            "claude",
+            {
+                "permission_mode": "plan",
+                "session_name": "demo",
+                "extra_flags": (
+                    "--spawn",
+                    "worktree",
+                    "--capacity",
+                    "8",
+                    "--name",
+                    "custom-name",
+                ),
+            },
+        )
+    ]
+
+
 def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> None:
     app = PipNavApp()
     detail_calls = []

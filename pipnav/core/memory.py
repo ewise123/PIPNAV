@@ -63,6 +63,15 @@ def _migrate_from_notes(notes: dict[str, ProjectNotes]) -> dict[str, ProjectMemo
     }
 
 
+def _load_notes_fallback(logger) -> dict[str, ProjectMemory]:
+    """Recover tags and notes from the legacy notes store when available."""
+    if not NOTES_PATH.exists():
+        return {}
+
+    logger.info("Falling back to legacy notes.json")
+    return _migrate_from_notes(load_notes())
+
+
 def load_memory() -> dict[str, ProjectMemory]:
     """Load memory from ~/.pipnav/memory.json. Migrates from notes.json if needed."""
     logger = get_logger()
@@ -73,14 +82,13 @@ def load_memory() -> dict[str, ProjectMemory]:
             data = json.loads(raw)
             return {key: _dict_to_memory(val) for key, val in data.items()}
         except (json.JSONDecodeError, TypeError, KeyError) as exc:
-            logger.warning("Corrupt memory file, returning empty: %s", exc)
-            return {}
+            logger.warning("Corrupt memory file, trying legacy notes fallback: %s", exc)
+            return _load_notes_fallback(logger)
 
     # Auto-migrate from notes.json if it exists
     if NOTES_PATH.exists():
         logger.info("Migrating notes.json to memory.json")
-        notes = load_notes()
-        memory = _migrate_from_notes(notes)
+        memory = _load_notes_fallback(logger)
         save_memory(memory)
         return memory
 

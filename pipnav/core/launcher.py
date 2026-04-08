@@ -149,6 +149,7 @@ def launch_remote_control(
     permission_mode: str = "auto",
     session_name: str = "",
     capacity: int | None = None,
+    extra_flags: Sequence[str] = (),
 ) -> tuple[bool, str]:
     """Launch Claude remote-control server in a new Windows Terminal tab."""
     logger = get_logger()
@@ -164,13 +165,18 @@ def launch_remote_control(
         quoted_path = shlex.quote(str(path))
         quoted_cmd = shlex.quote(command)
 
-        flags = ["remote-control", "--spawn", spawn_mode]
-        if permission_mode:
+        flags = ["remote-control"]
+        user_flags = list(extra_flags)
+
+        if "--spawn" not in user_flags:
+            flags.extend(["--spawn", spawn_mode])
+        if permission_mode and "--permission-mode" not in user_flags:
             flags.extend(["--permission-mode", permission_mode])
-        if session_name:
+        if session_name and "--name" not in user_flags:
             flags.extend(["--name", session_name])
-        if capacity is not None:
+        if capacity is not None and "--capacity" not in user_flags:
             flags.extend(["--capacity", str(capacity)])
+        flags.extend(user_flags)
 
         quoted_flags = " ".join(shlex.quote(f) for f in flags)
         shell_cmd = f"cd {quoted_path} && {quoted_cmd} {quoted_flags}"

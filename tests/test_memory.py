@@ -63,6 +63,27 @@ class TestMemoryPersistence:
         mem.MEMORY_PATH.write_text("not json!", encoding="utf-8")
         assert load_memory() == {}
 
+    def test_load_corrupt_memory_falls_back_to_notes(self) -> None:
+        import pipnav.core.memory as mem
+
+        mem.MEMORY_PATH.write_text("not json!", encoding="utf-8")
+        mem.NOTES_PATH.write_text(
+            json.dumps(
+                {
+                    "/home/user/proj": {
+                        "tags": ["work"],
+                        "note": "legacy note",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = load_memory()
+
+        assert loaded["/home/user/proj"].tags == ("work",)
+        assert loaded["/home/user/proj"].note == "legacy note"
+
 
 class TestMigrationFromNotes:
     def test_auto_migrates_from_notes_json(self, tmp_path: Path) -> None:

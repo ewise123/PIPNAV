@@ -98,7 +98,7 @@ def _get_watched_paths(roots: tuple[str, ...]) -> tuple[Path, ...]:
     _add_claude_watch_paths(paths)
 
     # Watch PipNav state files
-    for state_file in ("sessions.json", "notes.json", "config.json"):
+    for state_file in ("sessions.json", "notes.json", "memory.json", "config.json"):
         sf = PIPNAV_STATE_DIR / state_file
         if sf.exists():
             paths.append(sf)

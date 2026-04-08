@@ -751,11 +751,10 @@ class PipNavApp(App):
 
         recipe = event.recipe
         play_sound("launch")
-        extra_flags = list(recipe.claude_flags)
-        if recipe.permission_mode:
-            extra_flags.extend(["--permission-mode", recipe.permission_mode])
-
         if recipe.action == "resume_latest":
+            extra_flags = list(recipe.claude_flags)
+            if recipe.permission_mode:
+                extra_flags.extend(["--permission-mode", recipe.permission_mode])
             ok, err = launch_claude(
                 path,
                 self._config.claude_command,
@@ -770,9 +769,14 @@ class PipNavApp(App):
             ok, err = launch_remote_control(
                 path,
                 self._config.claude_command,
+                permission_mode=recipe.permission_mode or "auto",
                 session_name=path.name,
+                extra_flags=recipe.claude_flags,
             )
         else:
+            extra_flags = list(recipe.claude_flags)
+            if recipe.permission_mode:
+                extra_flags.extend(["--permission-mode", recipe.permission_mode])
             ok, err = launch_claude(
                 path,
                 self._config.claude_command,
