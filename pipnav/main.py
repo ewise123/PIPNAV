@@ -19,7 +19,7 @@ from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.indexer import ProjectIndexer
 from pipnav.core.launcher import launch_claude, launch_remote_control, launch_vscode
-from pipnav.core.logging import setup_logging
+from pipnav.core.logging import get_logger, setup_logging
 from pipnav.core.profiles import (
     DEFAULT_PROFILE,
     WorkspaceProfile,
@@ -1035,7 +1035,7 @@ class PipNavApp(App):
             else:
                 console.set_project_filter(path)
         except Exception:
-            pass
+            get_logger().exception("Failed to update CONSOLE project filter for %s", path)
 
     def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:
         """Return configured profiles plus the built-in default profile."""
