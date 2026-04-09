@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from pipnav.core.profiles import WorkspaceProfile
 from pipnav.ui.profile_editor import ProfileEditor, format_comma_list, parse_comma_list
 from textual.widgets import Input
@@ -114,7 +116,7 @@ class TestBuildProfileFromInputs:
 
 
 def test_arrow_navigation_moves_between_fields_from_input_focus(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     editor = ProfileEditor()
     calls: list[str] = []
