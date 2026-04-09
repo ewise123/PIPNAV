@@ -56,6 +56,7 @@ from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
 from pipnav.ui.launch_builder import LaunchBuilder
 from pipnav.ui.memory_editor import MemoryEditor
+from pipnav.ui.profile_editor import ProfileEditor
 from pipnav.ui.profile_switcher import ProfileSwitcher
 from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
@@ -736,6 +737,78 @@ class PipNavApp(App):
         self.notify(f"Profile: {profile.name}")
         self._load_projects()
         self._update_title()
+
+    @on(ProfileSwitcher.EditRequested)
+    def _on_profile_edit_requested(self, event: ProfileSwitcher.EditRequested) -> None:
+        """Open the profile editor for the active profile."""
+        self.push_screen(ProfileEditor(event.profile))
+
+    @on(ProfileSwitcher.NewRequested)
+    def _on_profile_new_requested(self, event: ProfileSwitcher.NewRequested) -> None:
+        """Open the profile editor to create a new profile."""
+        self.push_screen(ProfileEditor())
+
+    @on(ProfileEditor.Saved)
+    def _on_profile_saved(self, event: ProfileEditor.Saved) -> None:
+        """Save a created or edited workspace profile."""
+        from pipnav.core.profiles import save_profiles
+
+        profile = event.profile
+        original_name = event.original_name or profile.name
+        original_key = original_name.lower()
+        new_key = profile.name.lower()
+
+        # Reject rename to an existing profile name
+        if new_key != original_key and any(
+            p.name.lower() == new_key for p in self._profiles
+        ):
+            self.notify(
+                f"Profile '{profile.name}' already exists", severity="error"
+            )
+            return
+
+        # Upsert: replace by name or append
+        existing = tuple(
+            p for p in self._profiles if p.name.lower() != original_key
+        )
+        self._profiles = (*existing, profile)
+        save_profiles(self._profiles)
+
+        # If the active profile was edited, re-apply it
+        if self._active_profile.name.lower() == original_key:
+            self._active_profile = profile
+            self._config = update_config(
+                self._config,
+                active_profile=profile.name,
+            )
+
+            # Update roots
+            self._nav_stack.clear()
+            self._current_roots = get_effective_roots(
+                profile, self._config.project_roots
+            )
+            if self._watcher is not None:
+                self._watcher.roots = self._current_roots
+            if self._indexer is not None:
+                self._indexer.invalidate()
+
+            # Apply color scheme
+            scheme = profile.color_scheme or self._config.color_scheme
+            if scheme not in SCHEME_NAMES:
+                scheme = "green"
+            self.theme = f"pipboy-{scheme}"
+
+            # Update status bar
+            try:
+                bar_name = profile.name if profile.name != "default" else ""
+                self.query_one("#status-bar", StatusBar).update_profile(bar_name)
+            except Exception:
+                pass
+
+            self._load_projects()
+            self._update_title()
+
+        self.notify(f"Profile saved: {profile.name}")
 
     def action_pick_recipe(self) -> None:
         """Open the recipe picker modal for the selected project."""

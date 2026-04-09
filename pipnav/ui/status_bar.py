@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from textual.events import Resize
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -38,6 +39,10 @@ class StatusBar(Static):
         self._timer = self.set_interval(30, self._tick)
         self._refresh_display()
 
+    def on_resize(self, event: Resize) -> None:
+        """Refresh immediately when the terminal size changes."""
+        self._refresh_display()
+
     def _tick(self) -> None:
         """Update the clock."""
         self._refresh_display()
@@ -68,7 +73,7 @@ class StatusBar(Static):
         self._refresh_display()
 
     def _refresh_display(self) -> None:
-        """Re-render the status bar."""
+        """Re-render the status bar, adapting to terminal width."""
         hp_bar = make_bar(self.clean_projects, self.total_projects, 8)
         hp_text = f"{self.clean_projects}/{self.total_projects}"
 
@@ -81,14 +86,24 @@ class StatusBar(Static):
 
         now = datetime.now().strftime("%m.%d.%Y %H:%M")
 
+        # Width-aware: hide segments at narrow widths
+        width = self.size.width
+        # Guard: before layout, width is 0 — default to full display
+        if width == 0:
+            width = 200
+
         freshness = self._format_freshness()
-        profile = f"  │  [{self._profile_name}]" if self._profile_name else ""
+        show_profile = width >= 80 and self._profile_name
+        show_freshness = width >= 100
+
+        profile = f"  │  [{self._profile_name}]" if show_profile else ""
+        freshness_segment = f"  │  {freshness}" if show_freshness else ""
 
         self.update(
             f" HP:{hp_bar} {hp_text} clean"
             f"  │  AP:{ap_bar} {ap_text} w/ claude"
             f"{profile}"
-            f"  │  {freshness}"
+            f"{freshness_segment}"
             f"  │  {now}"
         )
 
