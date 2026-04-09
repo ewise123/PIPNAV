@@ -170,24 +170,38 @@ class ProfileEditor(ModalScreen):
     def on_key(self, event: Key) -> None:
         """Intercept arrow keys for field navigation.
 
-        Up/Down and j/k move between fields.  Let Input and expanded
-        Select widgets handle their own keys.
+        Up/Down always move between fields (even from Input widgets).
+        j/k move between fields only when a non-Input widget is focused.
+        Select dropdowns handle their own keys when expanded.
         """
         focused = self.focused
-
-        # Let Input widgets handle all keys normally for typing
-        if isinstance(focused, Input):
-            return
 
         # Let Select widget handle keys when its dropdown is open
         if isinstance(focused, Select) and focused.expanded:
             return
 
-        if event.key in ("down", "j"):
+        # Up/Down always navigate between fields
+        if event.key == "down":
             event.stop()
             event.prevent_default()
             self._focus_next()
-        elif event.key in ("up", "k"):
+            return
+        if event.key == "up":
+            event.stop()
+            event.prevent_default()
+            self._focus_prev()
+            return
+
+        # Let Input widgets handle all other keys for typing
+        if isinstance(focused, Input):
+            return
+
+        # j/k navigate when not in an Input
+        if event.key == "j":
+            event.stop()
+            event.prevent_default()
+            self._focus_next()
+        elif event.key == "k":
             event.stop()
             event.prevent_default()
             self._focus_prev()
