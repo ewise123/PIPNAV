@@ -205,11 +205,13 @@ class SessionCenterTab(VerticalScroll):
 
         sort_label = f"sort:{self._current_sort}"
         project_label = ""
+        hint = "[dim]f:filter  o:sort  Enter:resume[/]"
         if self._project_filter is not None:
             project_name = self._project_filter.name
             project_label = f"  │  viewing: {project_name}"
+            hint = "[dim]f:all projects  o:sort  Enter:resume[/]"
 
-        return f"  {'  '.join(parts)}  │  {sort_label}{project_label}  │  [dim]f:filter  o:sort  Enter:resume[/]"
+        return f"  {'  '.join(parts)}  │  {sort_label}{project_label}  │  {hint}"
 
     def cycle_filter(self) -> None:
         """Cycle to next filter."""

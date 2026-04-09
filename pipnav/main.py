@@ -202,7 +202,6 @@ class PipNavApp(App):
         self._profiles: tuple[WorkspaceProfile, ...] = ()
         self._active_profile: WorkspaceProfile = DEFAULT_PROFILE
         self._background_session_center_refresh: bool = False
-        self._console_project_scoped: bool = False
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -530,7 +529,7 @@ class PipNavApp(App):
         )
         self.query_one("#FILES", FilesTab).project_path = path
         self.query_one("#LOG", LogTab).project_path = path
-        if self._console_project_scoped:
+        if self._current_tab == "CONSOLE":
             self._set_console_project_filter(path)
 
     def _selected_project_path(self) -> Path | None:
@@ -549,13 +548,15 @@ class PipNavApp(App):
         except ValueError:
             self._current_tab = "STAT"
         if self._current_tab == "CONSOLE":
-            self._set_console_project_filter(None)
+            path = self._selected_project_path()
+            self._set_console_project_filter(path)
         self._apply_tab()
 
     def action_show_tab(self, tab: str) -> None:
         """Switch to a specific tab."""
         if tab == "CONSOLE":
-            self._set_console_project_filter(None)
+            path = self._selected_project_path()
+            self._set_console_project_filter(path)
         self._current_tab = tab
         self._apply_tab()
 
@@ -977,7 +978,11 @@ class PipNavApp(App):
     def action_session_filter(self) -> None:
         """Cycle session center filter (only when CONSOLE tab is active)."""
         if self._current_tab == "CONSOLE":
-            self.query_one("#CONSOLE", SessionCenterTab).cycle_filter()
+            console = self.query_one("#CONSOLE", SessionCenterTab)
+            if console._project_filter is not None:
+                self._set_console_project_filter(None)
+            else:
+                console.cycle_filter()
 
     def action_session_sort(self) -> None:
         """Cycle session center sort (only when CONSOLE tab is active)."""
@@ -1023,7 +1028,6 @@ class PipNavApp(App):
 
     def _set_console_project_filter(self, path: Path | None) -> None:
         """Switch the CONSOLE tab between project-scoped and global views."""
-        self._console_project_scoped = path is not None
         try:
             console = self.query_one("#CONSOLE", SessionCenterTab)
             if path is None:

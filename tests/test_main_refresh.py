@@ -303,16 +303,18 @@ def test_project_selected_skips_sound_for_programmatic_updates(monkeypatch) -> N
     )
 
 
-def test_action_show_tab_console_clears_project_filter(monkeypatch) -> None:
+def test_action_show_tab_console_filters_to_selected_project(monkeypatch) -> None:
     app = PipNavApp()
     console_calls: list[Path | None] = []
     header = SimpleNamespace(active_tab=None)
     content = SimpleNamespace(current=None)
     console_tab = SimpleNamespace(
         clear_project_filter=lambda: console_calls.append(None),
+        set_project_filter=lambda path: console_calls.append(path),
     )
 
     monkeypatch.setattr("pipnav.main.play_sound", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(app, "_selected_project_path", lambda: Path("/tmp/demo"))
 
     def query_one(selector, *_args, **_kwargs):
         if selector == "#CONSOLE":
@@ -324,12 +326,10 @@ def test_action_show_tab_console_clears_project_filter(monkeypatch) -> None:
         raise AssertionError(selector)
 
     monkeypatch.setattr(app, "query_one", query_one)
-    app._console_project_scoped = True
 
     app.action_show_tab("CONSOLE")
 
-    assert console_calls == [None]
-    assert app._console_project_scoped is False
+    assert console_calls == [Path("/tmp/demo")]
     assert content.current == "CONSOLE"
     assert header.active_tab == "CONSOLE"
 
@@ -365,6 +365,5 @@ def test_resume_pick_recipe_scopes_console_to_selected_project(
     )
 
     assert console_calls == [Path("/tmp/demo")]
-    assert app._console_project_scoped is True
     assert content.current == "CONSOLE"
     assert header.active_tab == "CONSOLE"
