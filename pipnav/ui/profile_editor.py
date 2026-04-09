@@ -176,9 +176,11 @@ class ProfileEditor(ModalScreen):
         """
         focused = self.focused
 
-        # Let Select widget handle keys when its dropdown is open
-        if isinstance(focused, Select) and focused.expanded:
-            return
+        # Let Select dropdown handle its own keys when open
+        if focused is not None:
+            select = focused.parent if not isinstance(focused, Select) else focused
+            if isinstance(select, Select) and select.expanded:
+                return
 
         # Up/Down always navigate between fields
         if event.key == "down":
