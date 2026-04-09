@@ -62,6 +62,7 @@ class SessionCenterTab(VerticalScroll):
         self._current_filter: str = "all"
         self._current_sort: str = "timestamp"
         self._loading: bool = False
+        self._project_filter: Path | None = None
 
     def compose(self) -> ComposeResult:
         yield Static(self._render_filter_bar(), id="session-filter-bar")
@@ -99,9 +100,23 @@ class SessionCenterTab(VerticalScroll):
         self._loading = False
         self._apply_filter_and_sort()
 
+    def set_project_filter(self, path: Path | None) -> None:
+        """Scope the view to sessions belonging to a specific project."""
+        self._project_filter = path
+        self._apply_filter_and_sort()
+
+    def clear_project_filter(self) -> None:
+        """Remove the project-scope filter and show all projects."""
+        self.set_project_filter(None)
+
     def _apply_filter_and_sort(self) -> None:
         """Apply current filter and sort, then rebuild the table."""
         filtered = filter_sessions(self._all_sessions, self._current_filter)
+        if self._project_filter is not None:
+            project_str = str(self._project_filter)
+            filtered = tuple(
+                s for s in filtered if s.project_path == project_str
+            )
         sorted_sessions = sort_sessions(filtered, self._current_sort)
         self._visible_sessions = sorted_sessions
         self._rebuild_table()
@@ -112,6 +127,11 @@ class SessionCenterTab(VerticalScroll):
         prev_row = table.cursor_row
         prev_session = self.get_selected_session()
         table.clear()
+
+        # Always update filter bar, even when no rows to display
+        self.query_one("#session-filter-bar", Static).update(
+            self._render_filter_bar()
+        )
 
         if not self._visible_sessions:
             if self._all_sessions:
@@ -154,10 +174,6 @@ class SessionCenterTab(VerticalScroll):
         elif prev_row is not None and prev_row < len(self._visible_sessions):
             table.move_cursor(row=prev_row)
 
-        # Update filter bar
-        self.query_one("#session-filter-bar", Static).update(
-            self._render_filter_bar()
-        )
 
     def _show_placeholder(self, text: str) -> None:
         """Show placeholder text and hide the table."""
@@ -168,9 +184,14 @@ class SessionCenterTab(VerticalScroll):
 
     def _render_filter_bar(self) -> str:
         """Render the filter/sort indicator bar."""
-        # Count by status
-        counts: dict[str, int] = {"all": len(self._all_sessions)}
-        for s in self._all_sessions:
+        # Count by status (respecting project filter for accurate counts)
+        base = self._all_sessions
+        if self._project_filter is not None:
+            project_str = str(self._project_filter)
+            base = tuple(s for s in base if s.project_path == project_str)
+
+        counts: dict[str, int] = {"all": len(base)}
+        for s in base:
             counts[s.status] = counts.get(s.status, 0) + 1
 
         parts: list[str] = []
@@ -183,7 +204,14 @@ class SessionCenterTab(VerticalScroll):
                 parts.append(f"[dim] {label} [/]")
 
         sort_label = f"sort:{self._current_sort}"
-        return f"  {'  '.join(parts)}  │  {sort_label}  │  [dim]f:filter  o:sort  Enter:resume[/]"
+        project_label = ""
+        hint = "[dim]f:filter  o:sort  Enter:resume[/]"
+        if self._project_filter is not None:
+            project_name = self._project_filter.name
+            project_label = f"  │  viewing: {project_name}"
+            hint = "[dim]f:all projects  o:sort  Enter:resume[/]"
+
+        return f"  {'  '.join(parts)}  │  {sort_label}{project_label}  │  {hint}"
 
     def cycle_filter(self) -> None:
         """Cycle to next filter."""

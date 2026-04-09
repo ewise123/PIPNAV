@@ -37,8 +37,8 @@ pytest -s  # with output
 - `j/k` navigate, `h/l` switch focus left/right
 - `Enter` drill into folder, `Backspace` go back
 - `v` VS Code, `c` Claude Code, `r` resume Claude
-- `Tab` or `1-5` switch tabs (STAT/FILES/LOG/SESSIONS/INV)
-- `/` search, `t` tag, `n` note, `p` color scheme, `~` CRT effects, `?` help, `q` quit
+- `Tab` or `1-5` switch tabs (STAT/FILES/LOG/CONSOLE/INV)
+- `/` search, `t` tag, `n` note, `p` color scheme, `~` sound effects, `?` help, `q` quit
 
 ## Future Ideas
 

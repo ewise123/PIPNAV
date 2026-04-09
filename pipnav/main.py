@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.theme import Theme
-from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, OptionList, Static
+from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, Static
 
 from pipnav.core.audio import init_audio, play_sound, shutdown_audio
 from pipnav.core.config import PipNavConfig, load_config, update_config
@@ -19,7 +19,7 @@ from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.indexer import ProjectIndexer
 from pipnav.core.launcher import launch_claude, launch_remote_control, launch_vscode
-from pipnav.core.logging import setup_logging
+from pipnav.core.logging import get_logger, setup_logging
 from pipnav.core.profiles import (
     DEFAULT_PROFILE,
     WorkspaceProfile,
@@ -60,7 +60,6 @@ from pipnav.ui.profile_switcher import ProfileSwitcher
 from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
 from pipnav.ui.session_center_tab import SessionCenterTab
-from pipnav.ui.sessions_tab import SessionsTab
 from pipnav.ui.status_bar import StatusBar
 
 # --- Color scheme themes ---
@@ -157,9 +156,8 @@ class PipNavApp(App):
         ("1", "show_tab('STAT')", "STAT"),
         ("2", "show_tab('FILES')", "FILES"),
         ("3", "show_tab('LOG')", "LOG"),
-        ("4", "show_tab('SESSIONS')", "SESSIONS"),
-        ("5", "show_tab('CONSOLE')", "CONSOLE"),
-        ("6", "show_tab('INV')", "INV"),
+        ("4", "show_tab('CONSOLE')", "CONSOLE"),
+        ("5", "show_tab('INV')", "INV"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_memory", "Memory"),
         ("N", "edit_note", "Note"),
@@ -214,7 +212,6 @@ class PipNavApp(App):
                 yield ProjectDetail(id="STAT")
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
-                yield SessionsTab(id="SESSIONS")
                 yield SessionCenterTab(id="CONSOLE")
                 yield InventoryTab(id="INV")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
@@ -532,7 +529,8 @@ class PipNavApp(App):
         )
         self.query_one("#FILES", FilesTab).project_path = path
         self.query_one("#LOG", LogTab).project_path = path
-        self.query_one("#SESSIONS", SessionsTab).project_path = path
+        if self._current_tab == "CONSOLE":
+            self._set_console_project_filter(path)
 
     def _selected_project_path(self) -> Path | None:
         """Return the path of the currently selected project."""
@@ -543,16 +541,22 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG", "SESSIONS", "CONSOLE", "INV")
+        tabs = ("STAT", "FILES", "LOG", "CONSOLE", "INV")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
         except ValueError:
             self._current_tab = "STAT"
+        if self._current_tab == "CONSOLE":
+            path = self._selected_project_path()
+            self._set_console_project_filter(path)
         self._apply_tab()
 
     def action_show_tab(self, tab: str) -> None:
         """Switch to a specific tab."""
+        if tab == "CONSOLE":
+            path = self._selected_project_path()
+            self._set_console_project_filter(path)
         self._current_tab = tab
         self._apply_tab()
 
@@ -762,8 +766,10 @@ class PipNavApp(App):
                 extra_flags=tuple(extra_flags),
             )
         elif recipe.action == "resume_pick":
-            # Switch to SESSIONS tab so user can pick
-            self.action_show_tab("SESSIONS")
+            # Switch to CONSOLE tab so user can pick a session
+            self._set_console_project_filter(path)
+            self._current_tab = "CONSOLE"
+            self._apply_tab()
             return
         elif recipe.action == "remote_control":
             ok, err = launch_remote_control(
@@ -902,8 +908,6 @@ class PipNavApp(App):
                 self.query_one("#file-tree").focus()
             elif tab == "LOG":
                 self.query_one("#LOG").focus()
-            elif tab == "SESSIONS":
-                self.query_one("#session-options").focus()
             elif tab == "CONSOLE":
                 self.query_one("#session-center-table").focus()
             elif tab == "INV":
@@ -954,19 +958,6 @@ class PipNavApp(App):
 
     # --- Session resume ---
 
-    @on(SessionsTab.SessionActivated)
-    def _on_session_activated(self, event: SessionsTab.SessionActivated) -> None:
-        """Resume a specific Claude Code session from per-project SESSIONS tab."""
-        ok, err = launch_claude(
-            event.project_path,
-            self._config.claude_command,
-            session_id=event.session_id,
-        )
-        if ok:
-            self.notify("Resuming Claude session...")
-        else:
-            self.notify(err, severity="error")
-
     @on(SessionCenterTab.SessionActivated)
     def _on_center_session_activated(
         self, event: SessionCenterTab.SessionActivated
@@ -987,7 +978,11 @@ class PipNavApp(App):
     def action_session_filter(self) -> None:
         """Cycle session center filter (only when CONSOLE tab is active)."""
         if self._current_tab == "CONSOLE":
-            self.query_one("#CONSOLE", SessionCenterTab).cycle_filter()
+            console = self.query_one("#CONSOLE", SessionCenterTab)
+            if console._project_filter is not None:
+                self._set_console_project_filter(None)
+            else:
+                console.cycle_filter()
 
     def action_session_sort(self) -> None:
         """Cycle session center sort (only when CONSOLE tab is active)."""
@@ -999,11 +994,6 @@ class PipNavApp(App):
     @on(DirectoryTree.NodeHighlighted)
     def _on_tree_navigate(self, event: DirectoryTree.NodeHighlighted) -> None:
         """Play navigate sound when moving in file tree."""
-        play_sound("navigate")
-
-    @on(OptionList.OptionHighlighted, "#session-options")
-    def _on_session_navigate(self, event: OptionList.OptionHighlighted) -> None:
-        """Play navigate sound when moving in session list."""
         play_sound("navigate")
 
     @on(DataTable.RowHighlighted)
@@ -1035,6 +1025,17 @@ class PipNavApp(App):
             self.query_one("#STAT", ProjectDetail).update_detail(
                 entry.name, path, git_status, session, notes, readme, memory=mem
             )
+
+    def _set_console_project_filter(self, path: Path | None) -> None:
+        """Switch the CONSOLE tab between project-scoped and global views."""
+        try:
+            console = self.query_one("#CONSOLE", SessionCenterTab)
+            if path is None:
+                console.clear_project_filter()
+            else:
+                console.set_project_filter(path)
+        except Exception:
+            get_logger().exception("Failed to update CONSOLE project filter for %s", path)
 
     def _available_profiles(self) -> tuple[WorkspaceProfile, ...]:
         """Return configured profiles plus the built-in default profile."""
