@@ -28,7 +28,6 @@ _FIELD_IDS = (
     "#profile-roots-input",
     "#profile-hidden-input",
     "#profile-color-select",
-    "#profile-recipe-input",
     "#profile-save-btn",
     "#profile-cancel-btn",
 )
@@ -155,14 +154,6 @@ class ProfileEditor(ModalScreen):
                     id="profile-color-select",
                 )
 
-            with Horizontal(classes="field-row"):
-                yield Label("Default Recipe", classes="field-label")
-                yield Input(
-                    value=self._profile.default_recipe if editing else "",
-                    placeholder="recipe name",
-                    id="profile-recipe-input",
-                )
-
             with Horizontal(classes="button-row"):
                 yield Button("Save", variant="primary", id="profile-save-btn")
                 yield Button("Cancel", variant="error", id="profile-cancel-btn")
@@ -179,31 +170,24 @@ class ProfileEditor(ModalScreen):
     def on_key(self, event: Key) -> None:
         """Intercept arrow keys for field navigation.
 
-        Up/Down move between fields even while editing text inputs.
-        j/k remain available when a non-text field is focused.
+        Up/Down and j/k move between fields.  Let Input and expanded
+        Select widgets handle their own keys.
         """
         focused = self.focused
 
-        if event.key == "down":
-            event.stop()
-            event.prevent_default()
-            self._focus_next()
-            return
-        if event.key == "up":
-            event.stop()
-            event.prevent_default()
-            self._focus_prev()
-            return
-
-        # Let Input widgets handle character keys normally for typing.
+        # Let Input widgets handle all keys normally for typing
         if isinstance(focused, Input):
             return
 
-        if event.key == "j":
+        # Let Select widget handle keys when its dropdown is open
+        if isinstance(focused, Select) and focused.expanded:
+            return
+
+        if event.key in ("down", "j"):
             event.stop()
             event.prevent_default()
             self._focus_next()
-        elif event.key == "k":
+        elif event.key in ("up", "k"):
             event.stop()
             event.prevent_default()
             self._focus_prev()
@@ -245,19 +229,19 @@ class ProfileEditor(ModalScreen):
         roots_raw = self.query_one("#profile-roots-input", Input).value
         hidden_raw = self.query_one("#profile-hidden-input", Input).value
         color_sel = self.query_one("#profile-color-select", Select)
-        recipe_input = self.query_one("#profile-recipe-input", Input)
 
         roots = parse_comma_list(roots_raw)
         hidden = parse_comma_list(hidden_raw)
         color = str(color_sel.value) if color_sel.value != Select.BLANK else ""
-        default_recipe = recipe_input.value.strip()
 
-        # Preserve existing recipes and tags_filter when editing
+        # Preserve existing recipes, tags_filter, and default_recipe when editing
         existing_recipes: tuple = ()
         existing_tags: tuple = ()
+        existing_default_recipe = ""
         if self._profile is not None:
             existing_recipes = self._profile.recipes
             existing_tags = self._profile.tags_filter
+            existing_default_recipe = self._profile.default_recipe
 
         profile = WorkspaceProfile(
             name=name,
@@ -265,7 +249,7 @@ class ProfileEditor(ModalScreen):
             tags_filter=existing_tags,
             hidden_projects=hidden,
             color_scheme=color,
-            default_recipe=default_recipe,
+            default_recipe=existing_default_recipe,
             recipes=existing_recipes,
         )
         return profile, ""

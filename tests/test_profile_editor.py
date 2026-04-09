@@ -113,7 +113,7 @@ class TestBuildProfileFromInputs:
         assert parsed == original
 
 
-def test_arrow_navigation_moves_between_fields_from_input_focus(
+def test_arrow_navigation_passes_through_when_input_focused(
     monkeypatch,
 ) -> None:
     editor = ProfileEditor()
@@ -136,4 +136,5 @@ def test_arrow_navigation_moves_between_fields_from_input_focus(
 
     editor.on_key(event)
 
-    assert calls == ["stop", "prevent", "next"]
+    # Input widgets handle their own keys — no navigation interception
+    assert calls == []
