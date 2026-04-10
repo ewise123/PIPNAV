@@ -85,32 +85,37 @@ class ProjectList(Widget):
         previous_entry = self.selected_entry
         self._entries = entries
         option_list = self.query_one("#project-options", ProjectOptionList)
-        option_list.clear_options()
-        for entry in entries:
-            badge = entry.badge
-            name = entry.name
-            # Pad name to fixed width before adding markup
-            padded_name = f"{name:<26}"
-            label = f"  {padded_name} {badge}"
-            option_list.add_option(Option(label, id=str(entry.path)))
 
-        # Restore the previous selection when possible so background refreshes
-        # don't yank the cursor back to the top.
-        if entries:
-            target_index = 0
-            if previous_entry is not None:
-                for index, entry in enumerate(entries):
-                    if entry.path == previous_entry.path:
-                        target_index = index
-                        break
-                else:
-                    if previous_index is not None and previous_index < len(entries):
-                        target_index = previous_index
-            elif previous_index is not None and previous_index < len(entries):
-                target_index = previous_index
+        # Suppress OptionHighlighted for the entire rebuild so background
+        # refreshes don't trigger the navigate sound.
+        with option_list.prevent(OptionList.OptionHighlighted):
+            option_list.clear_options()
+            for entry in entries:
+                badge = entry.badge
+                name = entry.name
+                # Pad name to fixed width before adding markup
+                padded_name = f"{name:<26}"
+                label = f"  {padded_name} {badge}"
+                option_list.add_option(Option(label, id=str(entry.path)))
 
-            with option_list.prevent(OptionList.OptionHighlighted):
+            # Restore the previous selection when possible so background
+            # refreshes don't yank the cursor back to the top.
+            if entries:
+                target_index = 0
+                if previous_entry is not None:
+                    for index, entry in enumerate(entries):
+                        if entry.path == previous_entry.path:
+                            target_index = index
+                            break
+                    else:
+                        if previous_index is not None and previous_index < len(entries):
+                            target_index = previous_index
+                elif previous_index is not None and previous_index < len(entries):
+                    target_index = previous_index
+
                 option_list.highlighted = target_index
+
+        if entries:
             self._fire_selected(target_index, user_initiated=False)
 
     @on(OptionList.OptionHighlighted, "#project-options")
