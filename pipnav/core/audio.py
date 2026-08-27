@@ -10,6 +10,12 @@ from pathlib import Path
 
 from pipnav.core.logging import get_logger
 
+
+def _is_wsl() -> bool:
+    """True when running under Windows Subsystem for Linux."""
+    import platform
+    return "microsoft" in platform.uname().release.lower()
+
 SOUNDS_DIR = Path(__file__).parent.parent / "sounds"
 VENDOR_DIR = Path(__file__).parent.parent / "vendor" / "naudio"
 WIN_SOUNDS_DIR = Path("/mnt/c/Users") / Path.home().name / ".pipnav" / "sounds"
@@ -322,6 +328,10 @@ def init_audio() -> None:
     global _audio_backend, _audio_process, _win_audio_helper, _win_legacy_player_script, _win_sounds_path
     logger = get_logger()
     _audio_backend = ""
+
+    if not _is_wsl():
+        logger.debug("Non-WSL host; Windows audio bridge disabled")
+        return
 
     WIN_SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
 

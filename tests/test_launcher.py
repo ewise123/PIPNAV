@@ -18,7 +18,8 @@ def test_launch_vscode_missing_command() -> None:
 
 
 def test_launch_claude_missing_wt() -> None:
-    with patch("pipnav.core.launcher.shutil.which", return_value=None):
+    with patch("pipnav.core.launcher._is_wsl", return_value=True), \
+         patch("pipnav.core.launcher.shutil.which", return_value=None):
         ok, err = launch_claude(Path("/tmp"))
     assert ok is False
     assert "wt.exe" in err
@@ -38,7 +39,8 @@ def test_launch_claude_new_tab(mock_popen) -> None:
     def _which(cmd: str) -> str | None:
         return "/usr/bin/" + cmd.replace(".exe", "")
 
-    with patch("pipnav.core.launcher.shutil.which", side_effect=_which):
+    with patch("pipnav.core.launcher._is_wsl", return_value=True), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which):
         ok, err = launch_claude(Path("/tmp/proj"))
     assert ok is True
     assert err == ""
@@ -142,7 +144,8 @@ def test_launch_remote_control_forwards_extra_flags(mock_popen) -> None:
 
 
 def test_launch_remote_control_missing_wt() -> None:
-    with patch("pipnav.core.launcher.shutil.which", return_value=None):
+    with patch("pipnav.core.launcher._is_wsl", return_value=True), \
+         patch("pipnav.core.launcher.shutil.which", return_value=None):
         ok, err = launch_remote_control(Path("/tmp"))
     assert ok is False
     assert "wt.exe" in err
@@ -213,3 +216,84 @@ class TestLaunchOptions:
         opts = LaunchOptions()
         with pytest.raises(AttributeError):
             opts.model = "changed"  # type: ignore[misc]
+
+
+# --- Native Linux (tmux) launch path -------------------------------------------------
+
+from pipnav.core import launcher as _ln
+
+
+def test_build_launch_argv_wsl_uses_windows_terminal() -> None:
+    argv = _ln._build_launch_argv(
+        "cd /p && claude", Path("/p"), "proj",
+        is_wsl=True, in_tmux=False, wt="/usr/bin/wt.exe", shell="/bin/bash",
+    )
+    assert argv[0] == "/usr/bin/wt.exe"
+    assert "new-tab" in argv
+    assert argv[-1] == "cd /p && claude"
+
+
+def test_build_launch_argv_linux_in_tmux_opens_new_window() -> None:
+    argv = _ln._build_launch_argv(
+        "cd /p && claude", Path("/p"), "proj",
+        is_wsl=False, in_tmux=True, shell="/usr/bin/zsh",
+    )
+    assert argv[:2] == ["tmux", "new-window"]
+    assert "-n" in argv and "proj" in argv
+    assert "-c" in argv and "/p" in argv
+    assert "new-session" not in argv
+    assert argv[-1] == "cd /p && claude"
+
+
+def test_build_launch_argv_linux_no_tmux_creates_detached_session() -> None:
+    argv = _ln._build_launch_argv(
+        "cd /p && claude", Path("/p"), "proj",
+        is_wsl=False, in_tmux=False, shell="/usr/bin/zsh",
+    )
+    assert argv[:2] == ["tmux", "new-session"]
+    assert "-d" in argv and "-s" in argv
+    assert argv[-1] == "cd /p && claude"
+
+
+def test_tmux_name_sanitizes_unsafe_chars() -> None:
+    assert _ln._tmux_name(Path("/home/x/my.proj:v2")) == "my-proj-v2"
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_linux_uses_tmux(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+    with patch("pipnav.core.launcher._is_wsl", return_value=False), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which), \
+         patch.dict("os.environ", {"TMUX": "/tmp/tmux-1000/default,1,0"}, clear=False):
+        ok, err = launch_claude(Path("/tmp/proj"))
+    assert ok is True and err == ""
+    argv = mock_popen.call_args[0][0]
+    assert argv[:2] == ["tmux", "new-window"]
+    assert argv[-1].startswith("cd ") and "claude" in argv[-1]
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_linux_missing_tmux(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return None if cmd == "tmux" else "/usr/bin/" + cmd
+    with patch("pipnav.core.launcher._is_wsl", return_value=False), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which):
+        ok, err = launch_claude(Path("/tmp/proj"))
+    assert ok is False
+    assert "tmux" in err
+    mock_popen.assert_not_called()
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_remote_control_linux_uses_tmux(mock_popen) -> None:
+    def _which(cmd: str) -> str | None:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+    with patch("pipnav.core.launcher._is_wsl", return_value=False), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which), \
+         patch.dict("os.environ", {"TMUX": "/tmp/tmux-1000/default,1,0"}, clear=False):
+        ok, err = launch_remote_control(Path("/tmp/proj"), session_name="rc")
+    assert ok is True and err == ""
+    argv = mock_popen.call_args[0][0]
+    assert argv[:2] == ["tmux", "new-window"]
+    assert "remote-control" in argv[-1]

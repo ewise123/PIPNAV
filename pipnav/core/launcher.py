@@ -1,5 +1,7 @@
 """Launch external tools — VS Code and Claude Code via WSL/Windows Terminal."""
 
+import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -8,6 +10,59 @@ from pathlib import Path
 from typing import Sequence
 
 from pipnav.core.logging import get_logger
+
+
+def _is_wsl() -> bool:
+    """True when running under Windows Subsystem for Linux."""
+    import platform
+    return "microsoft" in platform.uname().release.lower()
+
+
+def _tmux_name(path: Path) -> str:
+    """A tmux-safe window/session name derived from the project folder."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", path.name) or "pipnav"
+
+
+def _launch_preflight(command: str) -> tuple[bool, "str | None", str]:
+    """Validate environment and command availability. Returns (ok, wt_path, error)."""
+    if _is_wsl():
+        wt = shutil.which("wt.exe")
+        if not wt:
+            return False, None, "'wt.exe' not found \u2014 Windows Terminal required"
+    else:
+        wt = None
+        if not shutil.which("tmux"):
+            return False, None, "'tmux' not found \u2014 required to launch sessions on Linux"
+    if not shutil.which(command):
+        return False, None, f"'{command}' not found on PATH"
+    return True, wt, ""
+
+
+def _build_launch_argv(
+    shell_cmd: str,
+    path: Path,
+    name: str,
+    *,
+    is_wsl: bool,
+    in_tmux: bool,
+    wt: "str | None" = None,
+    shell: str = "bash",
+) -> list[str]:
+    """Build the argv that opens shell_cmd in a new session for the current environment.
+
+    WSL            -> new Windows Terminal tab running the command under wsl.exe
+    Linux + tmux   -> new tmux window in the current session
+    Linux, no tmux -> new detached tmux session (attach with: tmux attach -t <name>)
+    """
+    if is_wsl:
+        return [
+            wt, "-w", "0", "new-tab",
+            "wsl.exe", "--cd", str(path),
+            "--", "bash", "-ic", shell_cmd,
+        ]
+    if in_tmux:
+        return ["tmux", "new-window", "-c", str(path), "-n", name, shell, "-ic", shell_cmd]
+    return ["tmux", "new-session", "-d", "-s", name, "-c", str(path), shell, "-ic", shell_cmd]
 
 
 # Available choices for the custom launch builder
@@ -91,15 +146,12 @@ def launch_claude(
     session_id: str | None = None,
     extra_flags: Sequence[str] = (),
 ) -> tuple[bool, str]:
-    """Launch Claude Code in a new Windows Terminal tab. Returns (success, error_message)."""
+    """Launch Claude Code in a new session (WT tab on WSL, tmux window on Linux). Returns (success, error)."""
     logger = get_logger()
 
-    wt = shutil.which("wt.exe")
-    if not wt:
-        return False, "'wt.exe' not found — Windows Terminal required"
-
-    if not shutil.which(command):
-        return False, f"'{command}' not found on PATH"
+    ok, wt, err = _launch_preflight(command)
+    if not ok:
+        return False, err
 
     try:
         quoted_path = shlex.quote(str(path))
@@ -121,11 +173,11 @@ def launch_claude(
         flags_suffix = f" {quoted_flags}" if quoted_flags else ""
         shell_cmd = f"cd {quoted_path} && {quoted_cmd}{flags_suffix}"
 
-        args = [
-            wt, "-w", "0", "new-tab",
-            "wsl.exe", "--cd", str(path),
-            "--", "bash", "-ic", shell_cmd,
-        ]
+        args = _build_launch_argv(
+            shell_cmd, path, _tmux_name(path),
+            is_wsl=_is_wsl(), in_tmux=bool(os.environ.get("TMUX")),
+            wt=wt, shell=os.environ.get("SHELL") or "bash",
+        )
         subprocess.Popen(
             args,
             stdout=subprocess.DEVNULL,
@@ -151,15 +203,12 @@ def launch_remote_control(
     capacity: int | None = None,
     extra_flags: Sequence[str] = (),
 ) -> tuple[bool, str]:
-    """Launch Claude remote-control server in a new Windows Terminal tab."""
+    """Launch Claude remote-control server in a new session (WT tab on WSL, tmux window on Linux)."""
     logger = get_logger()
 
-    wt = shutil.which("wt.exe")
-    if not wt:
-        return False, "'wt.exe' not found — Windows Terminal required"
-
-    if not shutil.which(command):
-        return False, f"'{command}' not found on PATH"
+    ok, wt, err = _launch_preflight(command)
+    if not ok:
+        return False, err
 
     try:
         quoted_path = shlex.quote(str(path))
@@ -181,11 +230,11 @@ def launch_remote_control(
         quoted_flags = " ".join(shlex.quote(f) for f in flags)
         shell_cmd = f"cd {quoted_path} && {quoted_cmd} {quoted_flags}"
 
-        args = [
-            wt, "-w", "0", "new-tab",
-            "wsl.exe", "--cd", str(path),
-            "--", "bash", "-ic", shell_cmd,
-        ]
+        args = _build_launch_argv(
+            shell_cmd, path, _tmux_name(path),
+            is_wsl=_is_wsl(), in_tmux=bool(os.environ.get("TMUX")),
+            wt=wt, shell=os.environ.get("SHELL") or "bash",
+        )
         subprocess.Popen(
             args,
             stdout=subprocess.DEVNULL,

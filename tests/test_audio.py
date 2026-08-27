@@ -122,6 +122,7 @@ def test_init_audio_starts_player(
     monkeypatch.setattr(audio, "_cleanup_stale_helpers", MagicMock())
     monkeypatch.setattr(audio, "_start_player", MagicMock(return_value=proc))
     monkeypatch.setattr(audio, "get_logger", MagicMock())
+    monkeypatch.setattr(audio, "_is_wsl", lambda: True)
 
     audio.init_audio()
 
@@ -236,3 +237,16 @@ def test_app_on_unmount_shuts_down_audio() -> None:
         app.on_unmount()
 
     shutdown_audio.assert_called_once_with()
+
+
+def test_init_audio_noop_on_non_wsl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On a native Linux host (no Windows audio bridge), init_audio must not crash or start a player."""
+    monkeypatch.setattr(audio, "_is_wsl", lambda: False)
+    monkeypatch.setattr(audio, "get_logger", MagicMock())
+    started = MagicMock()
+    monkeypatch.setattr(audio, "_start_player", started)
+
+    audio.init_audio()
+
+    started.assert_not_called()
+    assert audio._audio_backend == ""
