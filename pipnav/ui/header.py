@@ -14,7 +14,7 @@ LOGO = """\
 ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═══╝╚═╝  ╚═╝  ╚═══╝\
 """
 
-TAB_NAMES = ("STAT", "FILES", "LOG", "CONSOLE", "INV", "FLEET")
+TAB_NAMES = ("STAT", "FILES", "LOG", "CONSOLE", "INV")
 
 
 class PipNavHeader(Widget):

@@ -58,7 +58,7 @@ So PipNav keeps the jobs herdr cannot do, and drops the rest:
 | PipNav's home | A herdr plugin pane, split placement. Standalone TUI kept as fallback. |
 | Project-management layer | Not in scope. GitHub issues parked. |
 | Placement | One herdr workspace per project; a second agent in a project gets its own tab. |
-| FLEET's job | **Launch and resume across harnesses — not live status.** Live status is herdr's. |
+| FLEET tab | **Deleted.** It duplicated herdr's sidebar, and could never show agents herdr did not start. Folded into CONSOLE. |
 | Blocked-agent chime | herdr's (`notification show --sound request`). Dropped from our scope. |
 
 ## The plugin
@@ -99,7 +99,7 @@ workspace it was opened in, so the pane can preselect that project.
   only when herdr is not running. `_claude_flags` shared by both routes.
 - **`main.py`** — `_launch_note` names the destination when PipNav is not itself
   inside herdr.
-- **`ui/fleet_tab.py`** — exists, but see *Phasing*; most of it is going.
+- **`ui/session_center_tab.py`** — CONSOLE, now cross-project and cross-tool with LIVE badges. `ui/fleet_tab.py` is deleted.
 
 ### Still to build
 
@@ -141,7 +141,7 @@ alert on live status; herdr does that.
 | 1b | plugin manifest | PipNav opens as a split beside an agent | **verified, uncommitted** |
 | 2 | `core/agents.py`; Codex + OpenCode launch | `c`/`x`/`o` start any of three | next |
 | 3 | Codex + OpenCode session readers | resume any of three by id | |
-| 4 | SESSIONS view: all harnesses, one list, LIVE badges | one place to resume anything | shrunk |
+| 4 | CONSOLE: all tools, one list, LIVE badges; FLEET deleted | one place to resume anything | **done** |
 | ~~5~~ | ~~events + chime~~ | **dropped — herdr notifies** | |
 | — | GitHub issues | parked | |
 
@@ -250,3 +250,24 @@ herdr's published docs. `herdr api schema --json` is the authoritative contract 
 
 Also: the project venv had lost `pytest`; reinstalled with
 `uv pip install --python .venv/bin/python pytest`.
+
+
+## Phase 4 findings (2026-09-10)
+
+17. **herdr cannot see agents it did not start.** Proved with five Claude
+    sessions running in the user's tmux session while `agent.list` returned
+    zero. So a "live agents" board in PipNav could only ever show a subset of
+    what herdr shows, which is why the FLEET tab was deleted rather than grown.
+18. **herdr records a Claude session id within about 8 seconds** of the agent
+    starting, as an `id`-kind session reference. That is what the LIVE badge
+    matches on.
+19. **A brand-new session has nothing to mark LIVE.** Claude does not write its
+    `.jsonl` until first prompted, so PipNav cannot list it, so there is no row
+    to badge. LIVE therefore means "a session with history that is running right
+    now" — which is the useful case: it stops you starting a second agent on
+    work already open.
+20. **Only id-kind references are matched.** Where herdr reports no session
+    reference, nothing is marked. A false LIVE badge is worse than none.
+21. Resuming from PipNav a session that is already alive outside herdr opens a
+    SECOND agent, because herdr cannot attach to a process it did not start.
+    Unavoidable; worth knowing.

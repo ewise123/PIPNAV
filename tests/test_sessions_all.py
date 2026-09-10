@@ -142,3 +142,91 @@ def test_latest_picks_the_newest_regardless_of_tool(stub):
 def test_latest_is_none_when_there_is_nothing(stub):
     stub()
     assert sessions_all.latest_for_project(PROJECT) is None
+
+
+# --- live matching -----------------------------------------------------------
+#
+# herdr records a session reference for agents it recognises. Matching on it is
+# how a row gets marked LIVE. When herdr reports no reference we mark nothing —
+# a false LIVE badge is worse than no badge.
+
+
+def test_live_keys_pairs_harness_with_session_id(monkeypatch):
+    from pipnav.core.herdr import HerdrAgent
+
+    monkeypatch.setattr(
+        sessions_all.herdr, "list_agents",
+        lambda: (
+            HerdrAgent("w1:p1", "w1:t1", "w1", "claude", "Claude Code", "working",
+                       PROJECT, "", "c1", "id", False),
+            HerdrAgent("w2:p1", "w2:t1", "w2", "codex", "Codex", "blocked",
+                       PROJECT, "", "x1", "id", False),
+        ),
+    )
+    assert sessions_all.live_keys() == frozenset(
+        {("claude", "c1"), ("codex", "x1")}
+    )
+
+
+def test_live_keys_ignores_an_agent_with_no_session_reference(monkeypatch):
+    """herdr has not seen a session id yet — claiming LIVE would be a guess."""
+    from pipnav.core.herdr import HerdrAgent
+
+    monkeypatch.setattr(
+        sessions_all.herdr, "list_agents",
+        lambda: (
+            HerdrAgent("w1:p1", "w1:t1", "w1", "claude", "Claude Code", "working",
+                       PROJECT, "", "", "", False),
+        ),
+    )
+    assert sessions_all.live_keys() == frozenset()
+
+
+def test_live_keys_ignores_a_path_style_reference(monkeypatch):
+    """Only id-kind references match a session id."""
+    from pipnav.core.herdr import HerdrAgent
+
+    monkeypatch.setattr(
+        sessions_all.herdr, "list_agents",
+        lambda: (
+            HerdrAgent("w1:p1", "w1:t1", "w1", "claude", "Claude Code", "working",
+                       PROJECT, "", "/some/path", "path", False),
+        ),
+    )
+    assert sessions_all.live_keys() == frozenset()
+
+
+def test_live_keys_empty_when_herdr_is_not_running(monkeypatch):
+    monkeypatch.setattr(sessions_all.herdr, "list_agents", lambda: ())
+    assert sessions_all.live_keys() == frozenset()
+
+
+def test_live_keys_survives_herdr_blowing_up(monkeypatch):
+    def boom():
+        raise RuntimeError("socket gone")
+
+    monkeypatch.setattr(sessions_all.herdr, "list_agents", boom)
+    assert sessions_all.live_keys() == frozenset()
+
+
+# --- across projects ---------------------------------------------------------
+
+
+def test_sessions_for_projects_merges_and_orders(stub):
+    other = Path("/home/ewise/projects/scratch")
+
+    def per_project(path):
+        if path == PROJECT:
+            return (_claude("c_pipnav", datetime(2026, 9, 8, 9, 0)),)
+        return (_claude("c_scratch", datetime(2026, 9, 9, 9, 0)),)
+
+    import pipnav.core.claude_sessions as cs
+    import pipnav.core.codex_sessions as cx
+    import pipnav.core.opencode_sessions as oc
+    stub()  # zero everything first
+    for mod in (cx, oc):
+        setattr(mod, "discover_sessions_for_project", lambda _p: ())
+    cs.discover_sessions_for_project = per_project
+
+    got = sessions_all.sessions_for_projects((PROJECT, other))
+    assert [s.session_id for s in got] == ["c_scratch", "c_pipnav"]

@@ -68,7 +68,6 @@ from pipnav.ui.profile_switcher import ProfileSwitcher
 from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
 from pipnav.ui.session_center_tab import SessionCenterTab
-from pipnav.ui.fleet_tab import FleetTab
 from pipnav.ui.status_bar import StatusBar
 
 # --- Color scheme themes ---
@@ -169,8 +168,6 @@ class PipNavApp(App):
         ("3", "show_tab('LOG')", "LOG"),
         ("4", "show_tab('CONSOLE')", "CONSOLE"),
         ("5", "show_tab('INV')", "INV"),
-        ("6", "show_tab('FLEET')", "FLEET"),
-        ("H", "focus_agent", "Focus agent"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_memory", "Memory"),
         ("N", "edit_note", "Note"),
@@ -190,7 +187,7 @@ class PipNavApp(App):
         "open_vscode", "open_claude", "resume_claude", "start_search",
         "cycle_tag", "edit_memory", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme", "session_filter", "session_sort",
-        "switch_profile", "pick_recipe", "focus_agent",
+        "switch_profile", "pick_recipe",
         "open_codex", "open_opencode",
     })
 
@@ -229,7 +226,6 @@ class PipNavApp(App):
                 yield LogTab(id="LOG")
                 yield SessionCenterTab(id="CONSOLE")
                 yield InventoryTab(id="INV")
-                yield FleetTab(id="FLEET")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield StatusBar(id="status-bar")
 
@@ -466,6 +462,10 @@ class PipNavApp(App):
             self.query_one("#CONSOLE", SessionCenterTab).load_sessions(
                 self._all_projects,
                 background=background,
+                branches={
+                    path: (status.branch if status else None)
+                    for path, status in self._git_statuses.items()
+                },
             )
         except Exception:
             pass
@@ -558,7 +558,7 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG", "CONSOLE", "INV", "FLEET")
+        tabs = ("STAT", "FILES", "LOG", "CONSOLE", "INV")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
@@ -1071,56 +1071,37 @@ class PipNavApp(App):
         self.notify(random_loading_message())
         self._load_projects()
 
-    # --- herdr fleet ---
+    # --- herdr ---
 
     def _start_herdr_poll(self) -> None:
-        """Poll herdr for live agent state.
+        """Keep the status bar's HERDR indicator current.
 
-        3s because a local socket call is sub-millisecond and blocked-ness is
-        what you want to know quickly. Phase 5 replaces this with events.subscribe.
+        3s because a local socket call is sub-millisecond and knowing the
+        runtime is up is worth having promptly.
         """
-        self._refresh_fleet()
-        self._herdr_timer = self.set_interval(3, self._refresh_fleet)
+        self._refresh_herdr()
+        self._herdr_timer = self.set_interval(3, self._refresh_herdr)
 
     @work(exclusive=True, thread=True)
-    def _refresh_fleet(self) -> None:
+    def _refresh_herdr(self) -> None:
         """Fetch herdr state off the UI thread — it touches a socket."""
         version = herdr.server_version()
-        agents = herdr.list_agents() if version else ()
-        self.call_from_thread(self._update_fleet, agents, bool(version), version)
+        live = herdr.list_agents() if version else ()
+        self.call_from_thread(self._update_herdr_indicator, live, bool(version))
 
-    def _update_fleet(
+    def _update_herdr_indicator(
         self,
-        agents: tuple[herdr.HerdrAgent, ...],
+        live: "tuple[herdr.HerdrAgent, ...]",
         available: bool,
-        version: str,
     ) -> None:
-        """Push herdr state into the FLEET tab and the status bar."""
-        blocked = sum(1 for agent in agents if agent.needs_you)
-        try:
-            self.query_one("#FLEET", FleetTab).update_fleet(agents, available, version)
-        except Exception:
-            pass
+        """Update the status bar. herdr's own sidebar is the status board."""
+        blocked = sum(1 for agent in live if agent.needs_you)
         try:
             self.query_one("#status-bar", StatusBar).update_herdr(
-                available, len(agents), blocked
+                available, len(live), blocked
             )
         except Exception:
             pass
-
-    def action_focus_agent(self) -> None:
-        """Bring the selected agent's herdr pane to the front."""
-        try:
-            pane_id = self.query_one("#FLEET", FleetTab).selected_pane_id()
-        except Exception:
-            pane_id = ""
-        if not pane_id:
-            self.notify("No agent selected", severity="warning")
-            return
-        if herdr.focus_agent(pane_id):
-            self.notify(f"Focused {pane_id} in herdr")
-        else:
-            self.notify(f"Could not focus {pane_id}", severity="error")
 
     # --- Focus and cursor ---
 
@@ -1136,8 +1117,6 @@ class PipNavApp(App):
                 self.query_one("#session-center-table").focus()
             elif tab == "INV":
                 self.query_one("#inv-table").focus()
-            elif tab == "FLEET":
-                self.query_one("#fleet-table").focus()
         except Exception:
             pass
 
@@ -1188,18 +1167,27 @@ class PipNavApp(App):
     def _on_center_session_activated(
         self, event: SessionCenterTab.SessionActivated
     ) -> None:
-        """Resume a session from the Session Control Center."""
+        """Resume a session from CONSOLE, in whichever tool made it."""
+        harness = agents.get(event.harness)
+        if harness is None:
+            self.notify(f"Unknown tool: {event.harness}", severity="error")
+            return
+
         play_sound("launch")
-        ok, err = launch_claude(
-            event.project_path,
-            self._config.claude_command,
-            session_id=event.session_id,
+        ok, err = launch_agent(
+            event.project_path, harness, session_id=event.session_id
         )
-        if ok:
-            self._sessions = record_session(event.project_path, resumable=True)
-            self.notify(self._launch_note(f"Resuming session in {event.project_path.name}"))
-        else:
+        if not ok:
             self.notify(err, severity="error")
+            return
+
+        if event.harness == "claude":
+            self._sessions = record_session(event.project_path, resumable=True)
+        self.notify(
+            self._launch_note(
+                f"Resuming {harness.label} in {event.project_path.name}"
+            )
+        )
 
     def action_session_filter(self) -> None:
         """Cycle session center filter (only when CONSOLE tab is active)."""

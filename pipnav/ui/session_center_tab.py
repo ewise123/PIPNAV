@@ -15,11 +15,18 @@ from pipnav.core.projects import ProjectInfo
 from pipnav.core.session_center import (
     STATUS_BADGES,
     EnrichedSession,
-    discover_all_sessions,
+    discover_every_session,
     filter_sessions,
     format_age,
     sort_sessions,
 )
+
+# Short, colour-coded, so the list is scannable by tool at a glance.
+_TOOL_LABELS = {
+    "claude": "[bold green]claude[/]",
+    "codex": "[bold cyan]codex[/]",
+    "opencode": "[bold magenta]opencode[/]",
+}
 
 
 class SessionCenterTable(DataTable):
@@ -48,6 +55,7 @@ class SessionCenterTab(VerticalScroll):
 
         session_id: str
         project_path: Path
+        harness: str = "claude"
 
     @dataclass
     class ProjectJump(Message):
@@ -74,24 +82,35 @@ class SessionCenterTab(VerticalScroll):
         table = self.query_one("#session-center-table", SessionCenterTable)
         table.cursor_type = "row"
         table.zebra_stripes = False
-        table.add_columns("STS", "PROJECT", "BRANCH", "SESSION", "MSG", "AGE")
+        table.add_columns("STS", "TOOL", "PROJECT", "BRANCH", "SESSION", "AGE")
         table.display = False
 
     def load_sessions(
         self,
         projects: tuple[ProjectInfo, ...],
         background: bool = False,
+        branches: "dict[str, str | None] | None" = None,
     ) -> None:
-        """Trigger background session discovery for all projects."""
+        """Trigger background session discovery for all projects.
+
+        `branches` comes from the indexer's git cache, so discovery does not
+        re-run git for every project.
+        """
         self._loading = True
         if not background or not self._all_sessions:
             self._show_placeholder("Scanning sessions...")
-        self._discover_sessions(projects)
+        self._discover_sessions(projects, branches or {})
 
     @work(exclusive=True, thread=True)
-    def _discover_sessions(self, projects: tuple[ProjectInfo, ...]) -> None:
-        """Discover all sessions in background."""
-        sessions = discover_all_sessions(projects)
+    def _discover_sessions(
+        self,
+        projects: tuple[ProjectInfo, ...],
+        branches: "dict[str, str | None]",
+    ) -> None:
+        """Discover every tool's sessions in background."""
+        sessions = discover_every_session(
+            tuple(project.path for project in projects), branches
+        )
         self.app.call_from_thread(self._update_sessions, sessions)
 
     def _update_sessions(self, sessions: tuple[EnrichedSession, ...]) -> None:
@@ -151,14 +170,13 @@ class SessionCenterTab(VerticalScroll):
             if len(prompt) > 50:
                 prompt = prompt[:47] + "..."
             age = format_age(session.age_seconds)
-            msg_count = str(session.message_count)
 
             table.add_row(
                 badge,
+                _TOOL_LABELS.get(session.harness, session.harness),
                 session.project_name,
                 session.branch,
                 prompt,
-                msg_count,
                 age,
             )
 
@@ -240,6 +258,7 @@ class SessionCenterTab(VerticalScroll):
                 self.SessionActivated(
                     session_id=session.session_id,
                     project_path=Path(session.project_path),
+                    harness=session.harness,
                 )
             )
 

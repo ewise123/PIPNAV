@@ -195,3 +195,83 @@ class TestFormatAge:
 
     def test_zero(self) -> None:
         assert format_age(0) == "0s"
+
+
+# --- all three tools in one cross-project list -------------------------------
+
+
+def _agent_session(harness, session_id, project, title, when, cost=0.0):
+    from pipnav.core.sessions_all import AgentSession
+    return AgentSession(
+        harness=harness, session_id=session_id, project_path=str(project),
+        title=title, last_active=when, cost=cost,
+    )
+
+
+def test_console_carries_every_tool(monkeypatch):
+    from datetime import datetime
+    from pathlib import Path
+    from pipnav.core import session_center, sessions_all
+
+    now = datetime.now()
+    monkeypatch.setattr(
+        sessions_all, "sessions_for_projects",
+        lambda _paths: (
+            _agent_session("claude", "c1", Path("/p/PIPNAV"), "Fix it", now),
+            _agent_session("codex", "x1", Path("/p/PIPNAV"), "PIPNAV", now),
+            _agent_session("opencode", "o1", Path("/p/scratch"), "Refactor", now, 0.42),
+        ),
+    )
+    monkeypatch.setattr(sessions_all, "live_keys", lambda: frozenset())
+
+    got = session_center.discover_every_session((Path("/p/PIPNAV"),), {})
+    assert [s.harness for s in got] == ["claude", "codex", "opencode"]
+    assert [s.project_name for s in got] == ["PIPNAV", "PIPNAV", "scratch"]
+
+
+def test_console_marks_the_running_one_live(monkeypatch):
+    from datetime import datetime, timedelta
+    from pathlib import Path
+    from pipnav.core import session_center, sessions_all
+
+    old = datetime.now() - timedelta(days=30)
+    monkeypatch.setattr(
+        sessions_all, "sessions_for_projects",
+        lambda _paths: (
+            _agent_session("codex", "x1", Path("/p/PIPNAV"), "running now", old),
+            _agent_session("codex", "x2", Path("/p/PIPNAV"), "not running", old),
+        ),
+    )
+    monkeypatch.setattr(sessions_all, "live_keys", lambda: frozenset({("codex", "x1")}))
+
+    got = session_center.discover_every_session((Path("/p/PIPNAV"),), {})
+    by_id = {s.session_id: s for s in got}
+    assert by_id["x1"].live is True
+    assert by_id["x1"].status == "live"
+    # A live session is live however old its last recorded activity is.
+    assert by_id["x2"].live is False
+    assert by_id["x2"].status != "live"
+
+
+def test_console_attaches_the_branch_from_cache(monkeypatch):
+    from datetime import datetime
+    from pathlib import Path
+    from pipnav.core import session_center, sessions_all
+
+    monkeypatch.setattr(
+        sessions_all, "sessions_for_projects",
+        lambda _paths: (
+            _agent_session("claude", "c1", Path("/p/PIPNAV"), "Fix", datetime.now()),
+        ),
+    )
+    monkeypatch.setattr(sessions_all, "live_keys", lambda: frozenset())
+
+    got = session_center.discover_every_session(
+        (Path("/p/PIPNAV"),), {"/p/PIPNAV": "feat/thing"}
+    )
+    assert got[0].branch == "feat/thing"
+
+
+def test_live_has_a_badge():
+    from pipnav.core.session_center import STATUS_BADGES
+    assert "live" in STATUS_BADGES

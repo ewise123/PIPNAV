@@ -28,6 +28,8 @@ class EnrichedSession:
     message_count: int
     age_seconds: int
     timestamp: datetime
+    harness: str = "claude"
+    live: bool = False
 
 
 # Sessions with activity within this window are considered "active"
@@ -173,6 +175,9 @@ def sort_sessions(
 
 
 STATUS_BADGES: dict[str, str] = {
+    # "live" is observed — herdr is running this session right now. Everything
+    # below it is inferred from how long ago the session was last touched.
+    "live": "[bold green]LIVE[/]",
     "active": "[bold green]ACT[/]",
     "resumable": "[bold yellow]RES[/]",
     "idle": "[dim]IDL[/]",
@@ -190,3 +195,55 @@ def format_age(seconds: int) -> str:
         return f"{seconds // 3600}h"
     days = seconds // 86400
     return f"{days}d"
+
+
+def discover_every_session(
+    project_paths: "tuple[Path, ...]",
+    branches: "dict[str, str | None]",
+) -> tuple[EnrichedSession, ...]:
+    """Every resumable session across every project and every tool.
+
+    This is what the CONSOLE tab shows. herdr's sidebar answers "what is
+    happening now"; this answers "what could I pick back up", which herdr
+    cannot know because it only sees agents it started itself.
+
+    A session herdr is currently running is marked live. Everything else keeps
+    the age-based classification, which is a guess and labelled as one.
+    """
+    from pipnav.core import sessions_all
+
+    live = sessions_all.live_keys()
+    enriched: list[EnrichedSession] = []
+
+    for session in sessions_all.sessions_for_projects(project_paths):
+        is_live = (session.harness, session.session_id) in live
+        age = max(0, int((datetime.now() - session.last_active).total_seconds()))
+
+        if is_live:
+            status = "live"
+        elif age > STALE_THRESHOLD_SECONDS:
+            status = "stale"
+        elif age < ACTIVE_THRESHOLD_SECONDS:
+            status = "active"
+        else:
+            status = "resumable"
+
+        project_path = session.project_path
+        enriched.append(
+            EnrichedSession(
+                session_id=session.session_id,
+                project_path=project_path,
+                project_name=Path(project_path).name if project_path else "—",
+                branch=branches.get(project_path) or "—",
+                status=status,
+                last_prompt=session.title,
+                message_count=0,
+                age_seconds=age,
+                timestamp=session.last_active,
+                harness=session.harness,
+                live=is_live,
+            )
+        )
+
+    enriched.sort(key=lambda s: (not s.live, -s.timestamp.timestamp()))
+    return tuple(enriched)

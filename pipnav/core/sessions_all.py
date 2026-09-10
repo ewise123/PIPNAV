@@ -14,7 +14,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from pipnav.core import agents, claude_sessions, codex_sessions, opencode_sessions
+from pipnav.core import (
+    agents,
+    claude_sessions,
+    codex_sessions,
+    herdr,
+    opencode_sessions,
+)
 from pipnav.core.logging import get_logger
 
 
@@ -106,3 +112,37 @@ def latest_for_project(project_path: Path) -> AgentSession | None:
     """The most recent session for this project in any tool, or None."""
     sessions = sessions_for_project(project_path)
     return sessions[0] if sessions else None
+
+
+def sessions_for_projects(
+    project_paths: "tuple[Path, ...]",
+) -> tuple[AgentSession, ...]:
+    """Every resumable session across several projects, newest first.
+
+    This is the cross-project question herdr cannot answer: it only knows the
+    agents it is currently running, never what you could pick back up.
+    """
+    merged: list[AgentSession] = []
+    for path in project_paths:
+        merged.extend(sessions_for_project(path))
+    merged.sort(key=lambda s: s.last_active, reverse=True)
+    return tuple(merged)
+
+
+def live_keys() -> frozenset[tuple[str, str]]:
+    """(harness, session_id) pairs herdr is currently running.
+
+    Only agents where herdr has recorded an id-kind session reference count.
+    Where it has not, we mark nothing — a wrong LIVE badge is worse than none.
+    """
+    try:
+        running = herdr.list_agents()
+    except Exception as exc:
+        get_logger().debug("Cannot read live agents: %s", exc)
+        return frozenset()
+
+    return frozenset(
+        (agent.harness, agent.session_ref)
+        for agent in running
+        if agent.harness and agent.session_kind == "id" and agent.session_ref
+    )
