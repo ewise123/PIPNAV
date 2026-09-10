@@ -60,6 +60,7 @@ from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
 from pipnav.ui.search_bar import SearchBar
+from pipnav.ui.session_picker import SessionPicker
 from pipnav.ui.launch_builder import LaunchBuilder
 from pipnav.ui.memory_editor import MemoryEditor
 from pipnav.ui.profile_editor import ProfileEditor
@@ -655,7 +656,7 @@ class PipNavApp(App):
 
     @work(thread=True)
     def action_resume_claude(self) -> None:
-        """Resume the most recent session for this project, in whichever tool made it.
+        """Offer every resumable session for this project, in any tool.
 
         Reading three session stores touches the filesystem and a SQLite
         database, so it runs off the UI thread.
@@ -664,19 +665,19 @@ class PipNavApp(App):
         if not path:
             return
 
-        latest = sessions_all.latest_for_project(path)
-        self.call_from_thread(self._resume_session, path, latest)
+        sessions = sessions_all.sessions_for_project(path)
+        self.call_from_thread(self._resume_session, path, sessions)
 
     def _resume_session(
         self,
         path: Path,
-        latest: "sessions_all.AgentSession | None",
+        sessions: "tuple[sessions_all.AgentSession, ...]",
     ) -> None:
-        """Reopen a session, or fall back to Claude's own picker."""
-        play_sound("launch")
-
-        if latest is None:
-            # Nothing on record for any tool — behave as PipNav always has.
+        """Offer the resumable sessions for this project, in every tool."""
+        if not sessions:
+            # Nothing on record anywhere — fall back to Claude's own picker,
+            # which is what r has always done.
+            play_sound("launch")
             ok, err = launch_claude(
                 path, self._config.claude_command, resume=True
             )
@@ -689,24 +690,28 @@ class PipNavApp(App):
                 self.notify(err, severity="error")
             return
 
-        harness = agents.get(latest.harness)
+        self.push_screen(SessionPicker(sessions, path.name))
+
+    @on(SessionPicker.Selected)
+    def _on_session_selected(self, event: SessionPicker.Selected) -> None:
+        """Reopen the session the user picked, in whichever tool made it."""
+        session = event.session
+        harness = agents.get(session.harness)
         if harness is None:
-            self.notify(f"Unknown tool: {latest.harness}", severity="error")
+            self.notify(f"Unknown tool: {session.harness}", severity="error")
             return
 
-        ok, err = launch_agent(path, harness, session_id=latest.session_id)
+        path = Path(session.project_path)
+        play_sound("launch")
+        ok, err = launch_agent(path, harness, session_id=session.session_id)
         if not ok:
             self.notify(err, severity="error")
             return
 
-        if latest.harness == "claude":
+        if session.harness == "claude":
             self._sessions = record_session(path, resumable=True)
-        title = latest.title[:40] if latest.title else latest.session_id[:12]
-        self.notify(
-            self._launch_note(f"Resuming {harness.label}: {title}")
-        )
-
-    # --- Search ---
+        title = session.title[:40] if session.title else session.session_id[:12]
+        self.notify(self._launch_note(f"Resuming {harness.label}: {title}"))
 
     def action_start_search(self) -> None:
         """Open the search bar."""

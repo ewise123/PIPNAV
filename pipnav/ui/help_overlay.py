@@ -23,7 +23,7 @@ HELP_TEXT = """\
   c                Launch Claude Code
   x                Launch Codex
   o                Launch OpenCode
-  r                Resume Claude Code session
+  r                Resume a session (any tool, pick from a list)
   a                Launch recipe picker
 
 [bold]Project[/]
