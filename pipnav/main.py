@@ -13,6 +13,7 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, Static
 
+from pipnav.core import herdr
 from pipnav.core.audio import init_audio, play_sound, shutdown_audio
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
@@ -61,6 +62,7 @@ from pipnav.ui.profile_switcher import ProfileSwitcher
 from pipnav.ui.recipe_editor import RecipeEditor, launch_options_to_recipe
 from pipnav.ui.recipe_picker import RecipePicker
 from pipnav.ui.session_center_tab import SessionCenterTab
+from pipnav.ui.fleet_tab import FleetTab
 from pipnav.ui.status_bar import StatusBar
 
 # --- Color scheme themes ---
@@ -159,6 +161,8 @@ class PipNavApp(App):
         ("3", "show_tab('LOG')", "LOG"),
         ("4", "show_tab('CONSOLE')", "CONSOLE"),
         ("5", "show_tab('INV')", "INV"),
+        ("6", "show_tab('FLEET')", "FLEET"),
+        ("H", "focus_agent", "Focus agent"),
         ("t", "cycle_tag", "Tag"),
         ("n", "edit_memory", "Memory"),
         ("N", "edit_note", "Note"),
@@ -178,7 +182,7 @@ class PipNavApp(App):
         "open_vscode", "open_claude", "resume_claude", "start_search",
         "cycle_tag", "edit_memory", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme", "session_filter", "session_sort",
-        "switch_profile", "pick_recipe",
+        "switch_profile", "pick_recipe", "focus_agent",
     })
 
     def __init__(self) -> None:
@@ -203,6 +207,7 @@ class PipNavApp(App):
         self._profiles: tuple[WorkspaceProfile, ...] = ()
         self._active_profile: WorkspaceProfile = DEFAULT_PROFILE
         self._background_session_center_refresh: bool = False
+        self._herdr_timer: object | None = None
 
     def compose(self) -> ComposeResult:
         yield PipNavHeader(id="header")
@@ -215,6 +220,7 @@ class PipNavApp(App):
                 yield LogTab(id="LOG")
                 yield SessionCenterTab(id="CONSOLE")
                 yield InventoryTab(id="INV")
+                yield FleetTab(id="FLEET")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield StatusBar(id="status-bar")
 
@@ -284,6 +290,7 @@ class PipNavApp(App):
 
         self.query_one("#project-list", ProjectList).focus_list()
         self._load_projects()
+        self._start_herdr_poll()
         self._reset_idle_timer()
 
     def on_unmount(self) -> None:
@@ -542,7 +549,7 @@ class PipNavApp(App):
 
     def action_next_tab(self) -> None:
         """Cycle through tabs."""
-        tabs = ("STAT", "FILES", "LOG", "CONSOLE", "INV")
+        tabs = ("STAT", "FILES", "LOG", "CONSOLE", "INV", "FLEET")
         try:
             idx = tabs.index(self._current_tab)
             self._current_tab = tabs[(idx + 1) % len(tabs)]
@@ -971,6 +978,57 @@ class PipNavApp(App):
         self.notify(random_loading_message())
         self._load_projects()
 
+    # --- herdr fleet ---
+
+    def _start_herdr_poll(self) -> None:
+        """Poll herdr for live agent state.
+
+        3s because a local socket call is sub-millisecond and blocked-ness is
+        what you want to know quickly. Phase 5 replaces this with events.subscribe.
+        """
+        self._refresh_fleet()
+        self._herdr_timer = self.set_interval(3, self._refresh_fleet)
+
+    @work(exclusive=True, thread=True)
+    def _refresh_fleet(self) -> None:
+        """Fetch herdr state off the UI thread — it touches a socket."""
+        version = herdr.server_version()
+        agents = herdr.list_agents() if version else ()
+        self.call_from_thread(self._update_fleet, agents, bool(version), version)
+
+    def _update_fleet(
+        self,
+        agents: tuple[herdr.HerdrAgent, ...],
+        available: bool,
+        version: str,
+    ) -> None:
+        """Push herdr state into the FLEET tab and the status bar."""
+        blocked = sum(1 for agent in agents if agent.needs_you)
+        try:
+            self.query_one("#FLEET", FleetTab).update_fleet(agents, available, version)
+        except Exception:
+            pass
+        try:
+            self.query_one("#status-bar", StatusBar).update_herdr(
+                available, len(agents), blocked
+            )
+        except Exception:
+            pass
+
+    def action_focus_agent(self) -> None:
+        """Bring the selected agent's herdr pane to the front."""
+        try:
+            pane_id = self.query_one("#FLEET", FleetTab).selected_pane_id()
+        except Exception:
+            pane_id = ""
+        if not pane_id:
+            self.notify("No agent selected", severity="warning")
+            return
+        if herdr.focus_agent(pane_id):
+            self.notify(f"Focused {pane_id} in herdr")
+        else:
+            self.notify(f"Could not focus {pane_id}", severity="error")
+
     # --- Focus and cursor ---
 
     def action_focus_right(self) -> None:
@@ -985,6 +1043,8 @@ class PipNavApp(App):
                 self.query_one("#session-center-table").focus()
             elif tab == "INV":
                 self.query_one("#inv-table").focus()
+            elif tab == "FLEET":
+                self.query_one("#fleet-table").focus()
         except Exception:
             pass
 

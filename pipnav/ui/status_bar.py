@@ -33,6 +33,9 @@ class StatusBar(Static):
         self._timer: object | None = None
         self._last_scan: datetime | None = None
         self._profile_name: str = ""
+        self._herdr_up: bool = False
+        self._herdr_agents: int = 0
+        self._herdr_blocked: int = 0
 
     def on_mount(self) -> None:
         """Start clock update timer."""
@@ -65,6 +68,13 @@ class StatusBar(Static):
     def update_freshness(self, last_scan: datetime | None) -> None:
         """Update the freshness indicator."""
         self._last_scan = last_scan
+        self._refresh_display()
+
+    def update_herdr(self, up: bool, agents: int, blocked: int) -> None:
+        """Update the herdr fleet indicator."""
+        self._herdr_up = up
+        self._herdr_agents = agents
+        self._herdr_blocked = blocked
         self._refresh_display()
 
     def update_profile(self, name: str) -> None:
@@ -102,10 +112,26 @@ class StatusBar(Static):
         self.update(
             f" HP:{hp_bar} {hp_text} clean"
             f"  │  AP:{ap_bar} {ap_text} w/ claude"
+            f"  │  {self._format_herdr()}"
             f"{profile}"
             f"{freshness_segment}"
             f"  │  {now}"
         )
+
+    def _format_herdr(self) -> str:
+        """Format the herdr fleet indicator.
+
+        Never hidden at narrow widths — knowing an agent is waiting on you is
+        the point of the fleet view.
+        """
+        if not self._herdr_up:
+            return "[dim]HERDR --[/]"
+        if self._herdr_blocked:
+            return (
+                f"HERDR {self._herdr_agents} "
+                f"[bold red]!{self._herdr_blocked}[/]"
+            )
+        return f"HERDR {self._herdr_agents}"
 
     def _format_freshness(self) -> str:
         """Format the freshness indicator."""
