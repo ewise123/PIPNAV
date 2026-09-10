@@ -12,3 +12,9 @@ title = "PipNav"
 command = ["sh", "-c", "exec \"$HERDR_PLUGIN_ROOT/herdr/pipnav-pane.sh\""]
 placement = "split"
 direction = "right"
+
+[[actions]]
+id = "open-pipnav"
+title = "Open PipNav"
+contexts = ["workspace", "pane"]
+command = ["sh", "-c", "exec \"$HERDR_PLUGIN_ROOT/herdr/pipnav-open.sh\""]
