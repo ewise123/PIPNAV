@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import uuid
 from dataclasses import dataclass
@@ -202,8 +203,162 @@ def list_agents(timeout: float = DEFAULT_TIMEOUT) -> tuple[HerdrAgent, ...]:
 def focus_agent(pane_id: str, timeout: float = DEFAULT_TIMEOUT) -> bool:
     """Bring an agent's pane to the front in herdr. False when it didn't work."""
     try:
-        call("agent.focus", {"pane_id": pane_id}, timeout=timeout)
+        # agent.* methods address by "target" (pane id or agent name). Only
+        # agent.start takes a "pane_id" — do not copy that shape here.
+        call("agent.focus", {"target": pane_id}, timeout=timeout)
         return True
     except HerdrError as exc:
         get_logger().debug("herdr agent.focus failed: %s", exc)
         return False
+
+
+# --- launching -------------------------------------------------------------
+#
+# Placement rules, decided 2026-09-10:
+#   one workspace per project, labelled with the project folder name;
+#   a second agent in that project gets its own TAB, not a split.
+
+# agent.start waits for the agent to come up, so it needs more room than a query.
+LAUNCH_TIMEOUT = 45.0
+
+
+def find_workspace(label: str, timeout: float = DEFAULT_TIMEOUT) -> str | None:
+    """The id of the workspace with this label, or None."""
+    try:
+        result = call("workspace.list", timeout=timeout)
+    except HerdrError as exc:
+        get_logger().debug("herdr workspace.list failed: %s", exc)
+        return None
+
+    workspaces = result.get("workspaces")
+    if not isinstance(workspaces, list):
+        return None
+    for workspace in workspaces:
+        if isinstance(workspace, dict) and workspace.get("label") == label:
+            workspace_id = workspace.get("workspace_id")
+            if isinstance(workspace_id, str) and workspace_id:
+                return workspace_id
+    return None
+
+
+def _root_pane_id(result: dict) -> str:
+    """The pane a workspace.create or tab.create just handed us."""
+    root = result.get("root_pane")
+    if isinstance(root, dict):
+        pane_id = root.get("pane_id")
+        if isinstance(pane_id, str) and pane_id:
+            return pane_id
+    return ""
+
+
+# herdr enforces this on agent names: lowercase, digits, - and _, 1-32 chars,
+# must start with a letter. Anything else is rejected as invalid_agent_name.
+AGENT_NAME_MAX = 32
+_NAME_STRIP = re.compile(r"[^a-z0-9_-]+")
+
+
+def agent_name(kind: str, label: str, pane_id: str = "") -> str:
+    """A herdr-legal agent name identifying which project this agent serves.
+
+    `pane_id` qualifies the name when the plain one is already taken — two
+    agents of the same kind in the same project.
+    """
+    def slug(text: str) -> str:
+        return _NAME_STRIP.sub("-", text.lower()).strip("-")
+
+    kind_slug = slug(kind) or "agent"
+    if not kind_slug[0].isalpha():
+        kind_slug = f"a{kind_slug}"
+
+    suffix = slug(pane_id)
+    # The uniquifier must survive truncation, so reserve its room up front.
+    budget = AGENT_NAME_MAX - (len(suffix) + 1 if suffix else 0)
+    name = f"{kind_slug}-{slug(label)}".strip("-")[:budget].strip("-")
+    return f"{name}-{suffix}" if suffix else name
+
+
+def _start_agent(pane_id: str, kind: str, name: str, args, timeout: float) -> dict:
+    """agent.start, addressed by pane_id — every other agent.* uses target."""
+    return call(
+        "agent.start",
+        {"pane_id": pane_id, "kind": kind, "name": name, "args": list(args)},
+        timeout=timeout,
+    )
+
+
+def open_agent(
+    project_path: Path,
+    kind: str,
+    args: "tuple[str, ...]" = (),
+    timeout: float = LAUNCH_TIMEOUT,
+) -> tuple[bool, str]:
+    """Start `kind` in a herdr pane for this project.
+
+    Returns (ok, error). Never raises — the caller falls back to its own
+    launcher when this reports False.
+    """
+    logger = get_logger()
+    label = project_path.name
+    cwd = str(project_path)
+
+    created_workspace_id = ""
+    created_tab_id = ""
+
+    try:
+        workspace_id = find_workspace(label)
+        if workspace_id:
+            # Project already open: give this agent its own tab.
+            placed = call(
+                "tab.create",
+                {"workspace_id": workspace_id, "cwd": cwd, "label": kind, "focus": True},
+            )
+            created_tab_id = (placed.get("tab") or {}).get("tab_id") or ""
+        else:
+            placed = call(
+                "workspace.create", {"label": label, "cwd": cwd, "focus": True}
+            )
+            created_workspace_id = (
+                (placed.get("workspace") or {}).get("workspace_id") or ""
+            )
+
+        pane_id = _root_pane_id(placed)
+        if not pane_id:
+            _undo_placement(created_workspace_id, created_tab_id)
+            return False, "herdr gave no pane to start the agent in"
+
+        # herdr requires agent names to be unique across the whole session, so
+        # the name carries the project; the pane-qualified retry covers two
+        # agents of the same kind in one project.
+        try:
+            started = _start_agent(
+                pane_id, kind, agent_name(kind, label), args, timeout
+            )
+        except HerdrError as exc:
+            if "agent_name_taken" not in str(exc):
+                raise
+            started = _start_agent(
+                pane_id, kind, agent_name(kind, label, pane_id), args, timeout
+            )
+    except HerdrError as exc:
+        logger.warning("herdr launch of %s in %s failed: %s", kind, cwd, exc)
+        _undo_placement(created_workspace_id, created_tab_id)
+        return False, str(exc)
+
+    logger.info("herdr started %s: %s", kind, started.get("argv"))
+    return True, ""
+
+
+def _undo_placement(workspace_id: str, tab_id: str) -> None:
+    """Remove the pane we made for an agent that never started.
+
+    Close only what we created: the tab when the project was already open, the
+    whole workspace when we opened it. Otherwise a failed launch leaves an empty
+    workspace sitting in the user's herdr window.
+    """
+    try:
+        if workspace_id:
+            call("workspace.close", {"workspace_id": workspace_id})
+        elif tab_id:
+            call("tab.close", {"tab_id": tab_id})
+    except HerdrError as exc:
+        get_logger().debug("herdr cleanup after failed launch: %s", exc)

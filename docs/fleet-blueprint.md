@@ -220,3 +220,49 @@ contradict or are absent from herdr's published docs.
 
 Also note: the project venv had lost `pytest`. Reinstalled via
 `uv pip install --python .venv/bin/python pytest`.
+
+## Phase 1 findings (2026-09-10)
+
+7. **`agent.*` methods address by `target`, not `pane_id`.** The one exception is
+   `agent.start`, which takes `pane_id`. Copying the `agent.start` shape into any
+   other `agent.*` call produces `missing field 'target'`. This shipped as a bug
+   in phase 0's `focus_agent` and is now fixed and covered by a test asserting
+   the wire payload — assert payloads, not just return values.
+8. **Creating a pane and running an agent are two steps.** Neither
+   `workspace.create`, `tab.create` nor `pane.split` accepts a command; they make
+   a shell pane at a cwd. `agent.start` then runs the agent in that pane and
+   returns the exact argv it used. `workspace.create` also creates a first tab
+   and pane, so the first agent in a project needs no extra `tab.create`.
+9. **A freshly started agent is not necessarily ready for input.** Claude Code
+   opened on its "do you trust this folder?" consent prompt; text sent at that
+   moment answered the dialog and exited the agent. `AgentInfo.launch_pending`
+   and `interactive_ready` exist for this — gate any prompt-sending on them, and
+   never assume a started agent can receive text. Affects phase 4/5's prompt key,
+   not phase 1's launch.
+10. **Activity text stays weak.** A real Claude pane's terminal title was the
+    launch command (`claude --permission-mode auto`), not what it was doing.
+    Resolving finding 6 properly needs `agent.read` or `state_labels`, not the
+    terminal title. Treat the DOING column as low-value until phase 4.
+11. `pane.read` nests its payload under `read`: `{"type":"pane_read","read":{"text":...}}`.
+12. `agent.start`'s `kind` accepts the ids from `server.agent_manifests` — 21
+    available here, including `claude`, `codex` and `opencode`.
+13. **Agent names are constrained and must be unique session-wide.**
+    `^[a-z][a-z0-9_-]{0,31}$`, and `agent.start` rejects a name already in use
+    anywhere in the session. A fixed name per kind therefore allows exactly one
+    Claude to exist at all — which defeats a multi-project fleet. `agent_name()`
+    slugifies `kind` + project and, on `agent_name_taken`, requalifies with the
+    pane id. Neither constraint appears in the JSON schema; both were found only
+    by launching for real.
+14. **Clean up placement when an agent fails to start.** A failed `agent.start`
+    otherwise leaves an empty workspace or tab in the user's herdr window.
+    `_undo_placement` closes the workspace when we created it, the tab when we
+    reused an existing project workspace. Verified against the live server.
+15. **Tests that reach a live socket must be isolated.** Before the autouse
+    `_herdr_absent` fixture existed, running `tests/test_launcher.py` on a
+    machine with herdr up started a real Claude process and left a stray
+    workspace behind. Unit tests must never depend on whether herdr happens to
+    be running.
+16. Confirmed working: one workspace per project, a new tab per agent, two
+    agents of the same kind in one project, and a second project reusing its
+    existing workspace. Claude sets its terminal title to "Claude Code" once
+    running — an app name, not activity, so finding 10 stands.

@@ -3,12 +3,26 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from pipnav.core.launcher import (
     LaunchOptions,
     launch_claude,
     launch_remote_control,
     launch_vscode,
 )
+
+
+@pytest.fixture(autouse=True)
+def _herdr_absent():
+    """Default every test to "herdr is not running".
+
+    Launching prefers herdr when it is up, and it may genuinely be running on the
+    machine these tests run on. Tests that exercise the herdr route patch
+    is_available themselves; the rest assert the terminal fallback.
+    """
+    with patch("pipnav.core.launcher.herdr.is_available", return_value=False):
+        yield
 
 
 def test_launch_vscode_missing_command() -> None:
@@ -18,8 +32,11 @@ def test_launch_vscode_missing_command() -> None:
 
 
 def test_launch_claude_missing_wt() -> None:
+    def _which(cmd: str) -> str | None:
+        return None if cmd == "wt.exe" else "/usr/bin/" + cmd
+
     with patch("pipnav.core.launcher._is_wsl", return_value=True), \
-         patch("pipnav.core.launcher.shutil.which", return_value=None):
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which):
         ok, err = launch_claude(Path("/tmp"))
     assert ok is False
     assert "wt.exe" in err
@@ -297,3 +314,85 @@ def test_launch_remote_control_linux_uses_tmux(mock_popen) -> None:
     argv = mock_popen.call_args[0][0]
     assert argv[:2] == ["tmux", "new-window"]
     assert "remote-control" in argv[-1]
+
+
+# --- herdr routing (fleet phase 1) -------------------------------------------
+#
+# herdr is the runtime when it is running. The Windows Terminal / tmux path is a
+# fallback for when it is NOT running — never a second attempt after herdr has
+# refused, which would launch the same agent twice.
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_uses_herdr_when_available(mock_popen) -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/claude"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(True, "")
+         ) as mock_open:
+        ok, err = launch_claude(Path("/home/ewise/projects/PIPNAV"))
+
+    assert (ok, err) == (True, "")
+    mock_popen.assert_not_called()
+
+    path, kind = mock_open.call_args.args[0], mock_open.call_args.args[1]
+    assert path == Path("/home/ewise/projects/PIPNAV")
+    assert kind == "claude"
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_passes_flags_through_to_herdr(mock_popen) -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/claude"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(True, "")
+         ) as mock_open:
+        launch_claude(
+            Path("/tmp/proj"), session_id="abc-123", extra_flags=("--model", "opus")
+        )
+
+    args = list(mock_open.call_args.args[2])
+    assert "--model" in args and "opus" in args
+    assert "--resume" in args and "abc-123" in args
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_does_not_fall_back_when_herdr_refuses(mock_popen) -> None:
+    """A running herdr that refuses is an error to report, not a reason to double-launch."""
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/claude"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent",
+             return_value=(False, "claude not found"),
+         ):
+        ok, err = launch_claude(Path("/tmp/proj"))
+
+    assert ok is False
+    assert "claude not found" in err
+    mock_popen.assert_not_called()
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_claude_falls_back_when_herdr_is_down(mock_popen) -> None:
+    def _which(cmd: str) -> str:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+
+    with patch("pipnav.core.launcher._is_wsl", return_value=True), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=False), \
+         patch("pipnav.core.launcher.herdr.open_agent") as mock_open:
+        ok, err = launch_claude(Path("/tmp/proj"))
+
+    assert (ok, err) == (True, "")
+    mock_open.assert_not_called()
+    mock_popen.assert_called_once()
+
+
+def test_launch_claude_reports_missing_binary_before_touching_herdr() -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value=None), \
+         patch("pipnav.core.launcher.herdr.is_available") as mock_avail:
+        ok, err = launch_claude(Path("/tmp/proj"))
+
+    assert ok is False
+    assert "not found" in err
+    mock_avail.assert_not_called()

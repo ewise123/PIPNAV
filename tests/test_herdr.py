@@ -290,3 +290,268 @@ def test_list_agents_label_falls_back_to_harness(fake):
     no_display = {k: v for k, v in AGENT_INFO.items() if k != "display_agent"}
     fake(_ok({"type": "agent_list", "agents": [no_display]}))
     assert herdr.list_agents()[0].label == "claude"
+
+
+# --- focus_agent -------------------------------------------------------------
+
+
+def test_focus_agent_addresses_the_agent_by_target(fake):
+    """agent.* methods take `target`, not `pane_id` — only agent.start differs."""
+    server = fake(_ok({"type": "agent_info", "agent": AGENT_INFO}))
+    assert herdr.focus_agent("w1:p2") is True
+
+    sent = json.loads(server.requests[0])
+    assert sent["method"] == "agent.focus"
+    assert sent["params"] == {"target": "w1:p2"}
+
+
+def test_focus_agent_false_when_herdr_refuses(fake):
+    fake(_err("not_found", "no such agent"))
+    assert herdr.focus_agent("w9:p9") is False
+
+
+def test_focus_agent_false_when_herdr_down(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "absent.sock"))
+    assert herdr.focus_agent("w1:p2") is False
+
+
+# --- find_workspace ----------------------------------------------------------
+
+
+WORKSPACES = {
+    "type": "workspace_list",
+    "workspaces": [
+        {"workspace_id": "w1", "label": "scratch"},
+        {"workspace_id": "w2", "label": "PIPNAV"},
+    ],
+}
+
+
+def test_find_workspace_matches_by_label(fake):
+    fake(_ok(WORKSPACES))
+    assert herdr.find_workspace("PIPNAV") == "w2"
+
+
+def test_find_workspace_none_when_no_match(fake):
+    fake(_ok(WORKSPACES))
+    assert herdr.find_workspace("cleanroom") is None
+
+
+def test_find_workspace_none_when_herdr_down(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "absent.sock"))
+    assert herdr.find_workspace("PIPNAV") is None
+
+
+# --- open_agent --------------------------------------------------------------
+#
+# Placement is the thing worth testing: one workspace per project, and a NEW TAB
+# for a second agent in a project that already has one. Getting this wrong puts
+# an agent somewhere the user isn't looking, with no error to show for it.
+
+
+def _workspace_created(workspace_id="w3", pane_id="w3:p1"):
+    return _ok({
+        "type": "workspace_created",
+        "workspace": {"workspace_id": workspace_id, "label": "cleanroom"},
+        "tab": {"tab_id": f"{workspace_id}:t1"},
+        "root_pane": {"pane_id": pane_id},
+    })
+
+
+def _tab_created(pane_id="w2:p7"):
+    return _ok({
+        "type": "tab_created",
+        "tab": {"tab_id": "w2:t2", "workspace_id": "w2"},
+        "root_pane": {"pane_id": pane_id},
+    })
+
+
+def _agent_started(pane_id="w3:p1"):
+    return _ok({
+        "type": "agent_started",
+        "agent": {**AGENT_INFO, "pane_id": pane_id},
+        "argv": ["claude", "--permission-mode", "auto"],
+    })
+
+
+def test_open_agent_creates_workspace_for_a_new_project(fake):
+    server = fake(
+        _ok(WORKSPACES),                 # workspace.list — no "cleanroom"
+        _workspace_created(),            # workspace.create
+        _agent_started(),                # agent.start
+    )
+    ok, err = herdr.open_agent(
+        Path("/home/ewise/projects/cleanroom"), "claude",
+        ("--permission-mode", "auto"),
+    )
+    assert (ok, err) == (True, "")
+
+    methods = [json.loads(r)["method"] for r in server.requests]
+    assert methods == ["workspace.list", "workspace.create", "agent.start"]
+
+    create = json.loads(server.requests[1])["params"]
+    assert create["label"] == "cleanroom"
+    assert create["cwd"] == "/home/ewise/projects/cleanroom"
+
+
+def test_open_agent_opens_a_new_tab_in_an_existing_project(fake):
+    """A second agent in the same project gets its own tab, not a split."""
+    server = fake(
+        _ok(WORKSPACES),        # workspace.list — "PIPNAV" already exists
+        _tab_created(),         # tab.create
+        _agent_started("w2:p7"),
+    )
+    ok, err = herdr.open_agent(Path("/home/ewise/projects/PIPNAV"), "codex")
+    assert (ok, err) == (True, "")
+
+    methods = [json.loads(r)["method"] for r in server.requests]
+    assert methods == ["workspace.list", "tab.create", "agent.start"]
+
+    tab = json.loads(server.requests[1])["params"]
+    assert tab["workspace_id"] == "w2"
+    assert tab["cwd"] == "/home/ewise/projects/PIPNAV"
+
+
+def test_open_agent_starts_the_right_kind_with_our_flags(fake):
+    server = fake(_ok(WORKSPACES), _workspace_created(), _agent_started())
+    herdr.open_agent(
+        Path("/home/ewise/projects/cleanroom"), "claude",
+        ("--model", "opus", "--permission-mode", "auto"),
+    )
+    start = json.loads(server.requests[2])["params"]
+
+    # agent.start is the one agent.* method addressed by pane_id, not target.
+    assert start["pane_id"] == "w3:p1"
+    assert start["kind"] == "claude"
+    assert start["args"] == ["--model", "opus", "--permission-mode", "auto"]
+
+
+def test_open_agent_fails_cleanly_when_herdr_down(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERDR_SOCKET_PATH", str(tmp_path / "absent.sock"))
+    ok, err = herdr.open_agent(Path("/tmp/x"), "claude")
+    assert ok is False
+    assert err
+
+
+def test_open_agent_fails_when_the_agent_will_not_start(fake):
+    fake(_ok(WORKSPACES), _workspace_created(), _err("spawn_failed", "claude not found"))
+    ok, err = herdr.open_agent(Path("/home/ewise/projects/cleanroom"), "claude")
+    assert ok is False
+    assert "claude not found" in err
+
+
+def test_open_agent_fails_when_no_pane_comes_back(fake):
+    """Never call agent.start without a pane to start it in."""
+    fake(_ok(WORKSPACES), _ok({"type": "workspace_created", "workspace": {}}))
+    ok, err = herdr.open_agent(Path("/home/ewise/projects/cleanroom"), "claude")
+    assert ok is False
+    assert err
+
+
+# --- open_agent: naming and cleanup -----------------------------------------
+#
+# Found by running it for real: herdr requires agent names to be unique across
+# the whole session, so a fixed name ("claude") allows exactly one Claude to
+# exist anywhere — which defeats the point of a multi-project fleet.
+
+
+def test_open_agent_names_the_agent_per_project(fake):
+    server = fake(_ok(WORKSPACES), _workspace_created(), _agent_started())
+    herdr.open_agent(Path("/home/ewise/projects/cleanroom"), "claude")
+    start = json.loads(server.requests[2])["params"]
+    assert start["name"] == "claude-cleanroom"
+
+
+def test_open_agent_retries_with_a_unique_name_when_taken(fake):
+    server = fake(
+        _ok(WORKSPACES),
+        _workspace_created(),
+        _err("agent_name_taken", "agent name claude-cleanroom is already used"),
+        _agent_started(),
+    )
+    ok, err = herdr.open_agent(Path("/home/ewise/projects/cleanroom"), "claude")
+    assert (ok, err) == (True, "")
+
+    methods = [json.loads(r)["method"] for r in server.requests]
+    assert methods.count("agent.start") == 2
+
+    first = json.loads(server.requests[2])["params"]["name"]
+    second = json.loads(server.requests[3])["params"]["name"]
+    assert first == "claude-cleanroom"
+    assert second != first
+    assert "w3-p1" in second  # pane id, sanitised, makes it unique
+
+
+def test_open_agent_closes_the_workspace_it_created_when_the_agent_fails(fake):
+    """A failed launch must not leave a stray empty workspace in herdr."""
+    server = fake(
+        _ok(WORKSPACES),
+        _workspace_created(),
+        _err("spawn_failed", "claude not found"),
+        _err("spawn_failed", "claude not found"),  # the name retry
+        _ok({"type": "workspace_closed"}),
+    )
+    ok, _ = herdr.open_agent(Path("/home/ewise/projects/cleanroom"), "claude")
+    assert ok is False
+
+    methods = [json.loads(r)["method"] for r in server.requests]
+    assert methods[-1] == "workspace.close"
+    assert json.loads(server.requests[-1])["params"] == {"workspace_id": "w3"}
+
+
+def test_open_agent_closes_only_the_tab_it_created_in_an_existing_workspace(fake):
+    """Reusing a project's workspace means cleaning up the tab, never the workspace."""
+    server = fake(
+        _ok(WORKSPACES),
+        _tab_created(),
+        _err("spawn_failed", "codex not found"),
+        _err("spawn_failed", "codex not found"),
+        _ok({"type": "tab_closed"}),
+    )
+    ok, _ = herdr.open_agent(Path("/home/ewise/projects/PIPNAV"), "codex")
+    assert ok is False
+
+    methods = [json.loads(r)["method"] for r in server.requests]
+    assert methods[-1] == "tab.close"
+    assert "workspace.close" not in methods
+    assert json.loads(server.requests[-1])["params"] == {"tab_id": "w2:t2"}
+
+
+# --- agent names -------------------------------------------------------------
+#
+# herdr enforces ^[a-z][a-z0-9_-]{0,31}$ on agent names. Found by launching for
+# real: "claude@PIPNAV" is rejected for both the "@" and the capitals.
+
+NAME_OK = __import__("re").compile(r"^[a-z][a-z0-9_-]{0,31}$")
+
+
+def test_agent_name_is_lowercase_and_hyphenated():
+    assert herdr.agent_name("claude", "PIPNAV") == "claude-pipnav"
+
+
+def test_agent_name_strips_characters_herdr_rejects():
+    name = herdr.agent_name("claude", "my project (v2)!")
+    assert NAME_OK.match(name), name
+
+
+def test_agent_name_respects_the_32_character_cap():
+    name = herdr.agent_name("opencode", "a-very-long-project-name-indeed-yes-truly")
+    assert len(name) <= 32
+    assert NAME_OK.match(name), name
+
+
+def test_agent_name_qualified_by_pane_stays_valid():
+    name = herdr.agent_name("claude", "PIPNAV", pane_id="w4:p12")
+    assert NAME_OK.match(name), name
+    assert "w4-p12" in name
+
+
+def test_agent_name_qualified_by_pane_respects_the_cap():
+    name = herdr.agent_name("opencode", "a-very-long-project-name-indeed", pane_id="w4:p12")
+    assert len(name) <= 32
+    assert NAME_OK.match(name), name
+    assert name.endswith("w4-p12")  # the uniquifier must survive truncation
+
+
+def test_agent_name_always_starts_with_a_letter():
+    assert NAME_OK.match(herdr.agent_name("claude", "123-numeric-start"))

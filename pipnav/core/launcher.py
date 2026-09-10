@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from pipnav.core import herdr
 from pipnav.core.logging import get_logger
 
 
@@ -139,6 +140,25 @@ def launch_vscode(
         return False, str(exc)
 
 
+def _claude_flags(
+    resume: bool,
+    session_id: str | None,
+    extra_flags: Sequence[str],
+) -> list[str]:
+    """The flags a Claude launch gets, shared by the herdr and terminal routes."""
+    flags = list(extra_flags)
+    has_permission_mode = "--permission-mode" in flags
+
+    if session_id:
+        flags.extend(["--resume", session_id])
+    elif resume:
+        flags.append("--resume")
+
+    if not (resume and not session_id) and not has_permission_mode:
+        flags.extend(["--permission-mode", "auto"])
+    return flags
+
+
 def launch_claude(
     path: Path,
     command: str = "claude",
@@ -146,8 +166,22 @@ def launch_claude(
     session_id: str | None = None,
     extra_flags: Sequence[str] = (),
 ) -> tuple[bool, str]:
-    """Launch Claude Code in a new session (WT tab on WSL, tmux window on Linux). Returns (success, error)."""
+    """Launch Claude Code.
+
+    herdr is the runtime when it is running: the agent opens in a herdr pane for
+    this project. The Windows Terminal / tmux path is the fallback for when herdr
+    is not running — it is never used as a retry after herdr refuses, which would
+    launch the same agent twice.
+    """
     logger = get_logger()
+
+    if not shutil.which(command):
+        return False, f"'{command}' not found on PATH"
+
+    flags = _claude_flags(resume, session_id, extra_flags)
+
+    if herdr.is_available():
+        return herdr.open_agent(path, "claude", tuple(flags))
 
     ok, wt, err = _launch_preflight(command)
     if not ok:
@@ -156,18 +190,6 @@ def launch_claude(
     try:
         quoted_path = shlex.quote(str(path))
         quoted_cmd = shlex.quote(command)
-        flags = list(extra_flags)
-        has_permission_mode = "--permission-mode" in flags
-
-        if session_id:
-            flags.extend(["--resume", session_id])
-            if not has_permission_mode:
-                flags.extend(["--permission-mode", "auto"])
-        elif resume:
-            flags.append("--resume")
-        else:
-            if not has_permission_mode:
-                flags.extend(["--permission-mode", "auto"])
 
         quoted_flags = " ".join(shlex.quote(flag) for flag in flags)
         flags_suffix = f" {quoted_flags}" if quoted_flags else ""
