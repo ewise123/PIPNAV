@@ -13,7 +13,7 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, Static
 
-from pipnav.core import agents, herdr
+from pipnav.core import agents, herdr, sessions_all
 from pipnav.core.audio import init_audio, play_sound, shutdown_audio
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
@@ -653,19 +653,58 @@ class PipNavApp(App):
         """Launch OpenCode on the selected project."""
         self._launch_harness("opencode")
 
+    @work(thread=True)
     def action_resume_claude(self) -> None:
-        """Resume Claude Code session on selected project."""
+        """Resume the most recent session for this project, in whichever tool made it.
+
+        Reading three session stores touches the filesystem and a SQLite
+        database, so it runs off the UI thread.
+        """
         path = self._selected_project_path()
-        if path:
-            play_sound("launch")
+        if not path:
+            return
+
+        latest = sessions_all.latest_for_project(path)
+        self.call_from_thread(self._resume_session, path, latest)
+
+    def _resume_session(
+        self,
+        path: Path,
+        latest: "sessions_all.AgentSession | None",
+    ) -> None:
+        """Reopen a session, or fall back to Claude's own picker."""
+        play_sound("launch")
+
+        if latest is None:
+            # Nothing on record for any tool — behave as PipNav always has.
             ok, err = launch_claude(
                 path, self._config.claude_command, resume=True
             )
             if ok:
                 self._sessions = record_session(path, resumable=True)
-                self.notify(self._launch_note(f"Resuming Claude session for {path.name}"))
+                self.notify(
+                    self._launch_note(f"Resuming Claude session for {path.name}")
+                )
             else:
                 self.notify(err, severity="error")
+            return
+
+        harness = agents.get(latest.harness)
+        if harness is None:
+            self.notify(f"Unknown tool: {latest.harness}", severity="error")
+            return
+
+        ok, err = launch_agent(path, harness, session_id=latest.session_id)
+        if not ok:
+            self.notify(err, severity="error")
+            return
+
+        if latest.harness == "claude":
+            self._sessions = record_session(path, resumable=True)
+        title = latest.title[:40] if latest.title else latest.session_id[:12]
+        self.notify(
+            self._launch_note(f"Resuming {harness.label}: {title}")
+        )
 
     # --- Search ---
 
