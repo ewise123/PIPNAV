@@ -35,20 +35,36 @@ def test_claude_keeps_pipnavs_existing_auto_default():
     assert agents.get("claude").launch_flags == ("--permission-mode", "auto")
 
 
-@pytest.mark.parametrize("key", ["codex", "opencode"])
-def test_codex_and_opencode_launch_with_their_own_safe_defaults(key):
-    """Both tools' auto-approve flags are labelled dangerous by their own help.
+def test_codex_reviews_approvals_automatically_inside_a_sandbox():
+    """--approve-for-me is Codex's analogue of Claude's auto mode.
 
-    PipNav must not opt a user into skipping approvals on their behalf.
+    It routes approvals through automatic review and keeps the workspace-write
+    sandbox, which is a different thing from bypassing the sandbox entirely.
     """
-    harness = agents.get(key)
-    assert harness.launch_flags == ()
+    assert agents.get("codex").launch_flags == ("--approve-for-me",)
 
-    flags = harness.launch_argv()
+
+def test_opencode_does_not_blanket_approve():
+    """OpenCode's --auto approves anything not explicitly denied.
+
+    That is a deny-list, not a reviewed decision, so PipNav does not enable it.
+    """
+    harness = agents.get("opencode")
+    assert harness.launch_flags == ()
+    assert "--auto" not in harness.launch_argv()
+
+
+@pytest.mark.parametrize("key", ["claude", "codex", "opencode"])
+def test_no_harness_ever_defaults_to_skipping_its_sandbox(key):
+    """The flags that remove sandboxing must never be applied on a user's behalf."""
+    flags = agents.get(key).launch_argv()
     for dangerous in (
         "--dangerously-bypass-approvals-and-sandbox",
+        "--dangerously-bypass-hook-trust",
+        "-s",
+        "danger-full-access",
+        "bypassPermissions",
         "--auto",
-        "--full-auto",
     ):
         assert dangerous not in flags
 

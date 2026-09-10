@@ -67,7 +67,11 @@ def _build_launch_argv(
 
 
 # Available choices for the custom launch builder
-PERMISSION_MODES = ("default", "auto", "plan", "acceptEdits", "dontAsk", "bypassPermissions")
+# Claude's actual choices, per `claude --help` (2026-09-10). "default" was
+# removed and "manual" added; the old list offered an invalid value.
+PERMISSION_MODES = (
+    "auto", "manual", "plan", "acceptEdits", "dontAsk", "bypassPermissions",
+)
 EFFORT_LEVELS = ("low", "medium", "high", "max")
 MODEL_ALIASES = ("sonnet", "opus", "haiku")
 

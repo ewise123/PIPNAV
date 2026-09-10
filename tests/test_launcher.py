@@ -420,7 +420,8 @@ def test_launch_agent_starts_codex_through_herdr(mock_popen) -> None:
     path, kind, argv = mock_open.call_args.args[:3]
     assert path == Path("/home/ewise/projects/PIPNAV")
     assert kind == "codex"  # the kind herdr recognises
-    assert tuple(argv) == ()  # codex gets its own defaults, no flags from us
+    # Codex's analogue of Claude's auto mode: reviewed approvals, sandbox kept.
+    assert tuple(argv) == ("--approve-for-me",)
 
 
 @patch("pipnav.core.launcher.subprocess.Popen")

@@ -70,11 +70,19 @@ class Harness:
 # Verified against these tools on 2026-09-10. herdr recognises all three keys
 # as agent kinds.
 #
-# Only Claude carries a permission default, and only because that is PipNav's
-# existing behaviour. Codex's --dangerously-bypass-approvals-and-sandbox and
-# OpenCode's --auto are both flagged as dangerous by their own help text, so
-# PipNav does not opt anyone into them; those tools start with their own
-# defaults and the user can pass flags explicitly.
+# Approval defaults are per-tool because the tools genuinely differ:
+#
+#   Claude   --permission-mode auto   PipNav's existing default.
+#   Codex    --approve-for-me         Reviews approvals automatically and keeps
+#                                     the workspace-write sandbox. The nearest
+#                                     analogue to Claude's auto mode.
+#   OpenCode (nothing)                Its --auto approves anything not
+#                                     explicitly denied — a deny-list, not a
+#                                     reviewed decision — so we leave it off.
+#
+# Nothing here ever applies a flag that removes a sandbox
+# (--dangerously-bypass-approvals-and-sandbox, danger-full-access,
+# bypassPermissions). A test asserts that.
 HARNESSES: tuple[Harness, ...] = (
     Harness(
         key="claude",
@@ -88,6 +96,7 @@ HARNESSES: tuple[Harness, ...] = (
         key="codex",
         label="Codex",
         binary="codex",
+        launch_flags=("--approve-for-me",),
         resume_flags=("resume", "{session}"),  # a subcommand, not a flag
         keybinding="x",
     ),
