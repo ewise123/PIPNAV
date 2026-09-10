@@ -58,7 +58,6 @@ def test_update_project_list_refreshes_session_center_in_background(
 
     monkeypatch.setattr(app, "_rebuild_list", lambda _projects: None)
     monkeypatch.setattr(app, "_update_status_bar", lambda: None)
-    monkeypatch.setattr(app, "_update_inventory", lambda: None)
     monkeypatch.setattr(
         app,
         "_update_session_center",
@@ -87,7 +86,6 @@ def test_update_project_list_applies_hidden_project_filter(
         project.name for project in projects
     ))
     monkeypatch.setattr(app, "_update_status_bar", lambda: None)
-    monkeypatch.setattr(app, "_update_inventory", lambda: None)
     monkeypatch.setattr(app, "_update_session_center", lambda background=False: None)
     monkeypatch.setattr(app, "query_one", lambda *args, **kwargs: _FakeStatusBar())
 

@@ -17,6 +17,10 @@ HELP_TEXT = """\
   Esc              Go back / close / quit
   Tab              Cycle tabs
   1-5              STAT / FILES / LOG / CONSOLE / INV
+                   CONSOLE = sessions in this project
+                   INV     = sessions across all projects
+  f                Filter sessions by status (CONSOLE / INV)
+  s                Sort sessions (CONSOLE / INV)
 
 [bold]Actions[/]
   v                Open project in VS Code

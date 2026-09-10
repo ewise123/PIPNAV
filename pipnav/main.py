@@ -55,7 +55,6 @@ from pipnav.ui.files_tab import FilesTab
 from pipnav.ui.header import PipNavHeader
 from pipnav.ui.help_overlay import HelpScreen
 from pipnav.ui.idle_screen import IdleScreen
-from pipnav.ui.inventory_tab import InventoryTab
 from pipnav.ui.log_tab import LogTab
 from pipnav.ui.project_detail import ProjectDetail
 from pipnav.ui.project_list import ProjectEntry, ProjectList
@@ -225,7 +224,7 @@ class PipNavApp(App):
                 yield FilesTab(id="FILES")
                 yield LogTab(id="LOG")
                 yield SessionCenterTab(id="CONSOLE")
-                yield InventoryTab(id="INV")
+                yield SessionCenterTab(id="INV")
         yield PipBoyInput(placeholder="Enter note (max 200 chars)...", id="note-input")
         yield StatusBar(id="status-bar")
 
@@ -398,7 +397,6 @@ class PipNavApp(App):
         }
         self._rebuild_list(visible_projects)
         self._update_status_bar()
-        self._update_inventory()
         self._update_session_center(
             background=self._background_session_center_refresh
         )
@@ -444,29 +442,19 @@ class PipNavApp(App):
         except Exception:
             pass
 
-    def _update_inventory(self) -> None:
-        """Update the INV tab DataTable."""
-        try:
-            projects = tuple(
-                (p.name, p.path) for p in self._all_projects
-            )
-            self.query_one("#INV", InventoryTab).update_inventory(
-                projects, self._git_statuses
-            )
-        except Exception:
-            pass
-
     def _update_session_center(self, background: bool = False) -> None:
         """Update the CONSOLE tab with all sessions."""
         try:
-            self.query_one("#CONSOLE", SessionCenterTab).load_sessions(
-                self._all_projects,
-                background=background,
-                branches={
-                    path: (status.branch if status else None)
-                    for path, status in self._git_statuses.items()
-                },
-            )
+            branches = {
+                path: (status.branch if status else None)
+                for path, status in self._git_statuses.items()
+            }
+            for tab_id in ("CONSOLE", "INV"):
+                self.query_one(f"#{tab_id}", SessionCenterTab).load_sessions(
+                    self._all_projects,
+                    background=background,
+                    branches=branches,
+                )
         except Exception:
             pass
 
@@ -1120,9 +1108,13 @@ class PipNavApp(App):
             elif tab == "LOG":
                 self.query_one("#LOG").focus()
             elif tab == "CONSOLE":
-                self.query_one("#session-center-table").focus()
+                self._session_view("CONSOLE").query_one(
+                    "#session-center-table"
+                ).focus()
             elif tab == "INV":
-                self.query_one("#inv-table").focus()
+                self._session_view("INV").query_one(
+                    "#session-center-table"
+                ).focus()
         except Exception:
             pass
 
@@ -1195,19 +1187,19 @@ class PipNavApp(App):
             )
         )
 
+    def _session_view(self, tab_id: str) -> SessionCenterTab:
+        """One of the two session views: CONSOLE (this project) or INV (all)."""
+        return self.query_one(f"#{tab_id}", SessionCenterTab)
+
     def action_session_filter(self) -> None:
-        """Cycle session center filter (only when CONSOLE tab is active)."""
-        if self._current_tab == "CONSOLE":
-            console = self.query_one("#CONSOLE", SessionCenterTab)
-            if console._project_filter is not None:
-                self._set_console_project_filter(None)
-            else:
-                console.cycle_filter()
+        """Cycle the status filter in whichever session view is showing."""
+        if self._current_tab in ("CONSOLE", "INV"):
+            self._session_view(self._current_tab).cycle_filter()
 
     def action_session_sort(self) -> None:
-        """Cycle session center sort (only when CONSOLE tab is active)."""
-        if self._current_tab == "CONSOLE":
-            self.query_one("#CONSOLE", SessionCenterTab).cycle_sort()
+        """Cycle the sort in whichever session view is showing."""
+        if self._current_tab in ("CONSOLE", "INV"):
+            self._session_view(self._current_tab).cycle_sort()
 
     # --- File tree integration ---
 
