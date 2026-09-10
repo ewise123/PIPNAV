@@ -555,3 +555,24 @@ def test_agent_name_qualified_by_pane_respects_the_cap():
 
 def test_agent_name_always_starts_with_a_letter():
     assert NAME_OK.match(herdr.agent_name("claude", "123-numeric-start"))
+
+
+# --- in_herdr ----------------------------------------------------------------
+#
+# herdr injects HERDR_ENV=1 into the processes it runs. PipNav uses this to know
+# whether a pane it opens will be visible to the user or start off-screen.
+
+
+def test_in_herdr_true_when_herdr_runs_us(monkeypatch):
+    monkeypatch.setenv("HERDR_ENV", "1")
+    assert herdr.in_herdr() is True
+
+
+def test_in_herdr_false_when_unset(monkeypatch):
+    monkeypatch.delenv("HERDR_ENV", raising=False)
+    assert herdr.in_herdr() is False
+
+
+def test_in_herdr_false_when_not_the_marker_value(monkeypatch):
+    monkeypatch.setenv("HERDR_ENV", "0")
+    assert herdr.in_herdr() is False

@@ -59,6 +59,15 @@ class HerdrAgent:
         return self.status == NEEDS_YOU
 
 
+def in_herdr() -> bool:
+    """True when PipNav is itself running in a herdr pane.
+
+    herdr sets HERDR_ENV=1 in the processes it runs. When this is False, a pane
+    PipNav opens starts somewhere the user cannot see, so it is worth saying so.
+    """
+    return os.environ.get("HERDR_ENV") == "1"
+
+
 def socket_path() -> Path:
     """Resolve the API socket the way herdr's own client does."""
     explicit = os.environ.get("HERDR_SOCKET_PATH")

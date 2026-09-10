@@ -592,6 +592,17 @@ class PipNavApp(App):
             else:
                 self.notify(f"Opening {path.name} in VS Code...")
 
+    def _launch_note(self, message: str) -> str:
+        """Say where an agent went when it started somewhere the user can't see.
+
+        PipNav launches into herdr, so if PipNav is not itself running inside
+        herdr the new pane is off-screen. Without this the launch looks like it
+        did nothing.
+        """
+        if herdr.in_herdr() or not herdr.is_available():
+            return message
+        return f"{message} \u2014 in herdr, attach with 'herdr'"
+
     def action_open_claude(self) -> None:
         """Launch Claude Code on selected project."""
         path = self._selected_project_path()
@@ -600,7 +611,7 @@ class PipNavApp(App):
             ok, err = launch_claude(path, self._config.claude_command)
             if ok:
                 self._sessions = record_session(path, resumable=True)
-                self.notify(f"Claude Code launched for {path.name}")
+                self.notify(self._launch_note(f"Claude Code launched for {path.name}"))
             else:
                 self.notify(err, severity="error")
 
@@ -614,7 +625,7 @@ class PipNavApp(App):
             )
             if ok:
                 self._sessions = record_session(path, resumable=True)
-                self.notify(f"Resuming Claude session for {path.name}")
+                self.notify(self._launch_note(f"Resuming Claude session for {path.name}"))
             else:
                 self.notify(err, severity="error")
 
@@ -871,7 +882,7 @@ class PipNavApp(App):
 
         if ok:
             self._sessions = record_session(path, resumable=True)
-            self.notify(f"{recipe.name}: {path.name}")
+            self.notify(self._launch_note(f"{recipe.name}: {path.name}"))
         else:
             self.notify(err, severity="error")
 
@@ -904,7 +915,7 @@ class PipNavApp(App):
 
         if ok:
             self._sessions = record_session(path, resumable=True)
-            self.notify(f"Custom launch: {path.name}")
+            self.notify(self._launch_note(f"Custom launch: {path.name}"))
 
             # Save as recipe if requested
             if event.save_as_recipe:
@@ -1104,7 +1115,7 @@ class PipNavApp(App):
         )
         if ok:
             self._sessions = record_session(event.project_path, resumable=True)
-            self.notify(f"Resuming session in {event.project_path.name}...")
+            self.notify(self._launch_note(f"Resuming session in {event.project_path.name}"))
         else:
             self.notify(err, severity="error")
 
