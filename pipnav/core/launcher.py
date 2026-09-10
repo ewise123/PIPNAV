@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from pipnav.core import herdr
+from pipnav.core import agents, herdr
 from pipnav.core.logging import get_logger
 
 
@@ -137,6 +137,55 @@ def launch_vscode(
         return True, ""
     except OSError as exc:
         logger.error("Failed to launch VS Code: %s", exc)
+        return False, str(exc)
+
+
+def launch_agent(
+    path: Path,
+    harness: "agents.Harness",
+    extra_flags: Sequence[str] = (),
+    session_id: str | None = None,
+) -> tuple[bool, str]:
+    """Start or resume any supported coding tool in a project.
+
+    herdr is the runtime when it is running: the tool opens in a herdr tab for
+    this project. The terminal path is the fallback for when herdr is not
+    running, never a retry after herdr refuses — that would launch twice.
+    """
+    logger = get_logger()
+
+    if not shutil.which(harness.binary):
+        return False, f"'{harness.binary}' not found on PATH"
+
+    if session_id:
+        argv = harness.resume_argv(session_id)
+    else:
+        argv = harness.launch_argv(tuple(extra_flags))
+
+    if herdr.is_available():
+        return herdr.open_agent(path, harness.herdr_kind, argv)
+
+    ok, wt, err = _launch_preflight(harness.binary)
+    if not ok:
+        return False, err
+
+    try:
+        quoted = " ".join(shlex.quote(part) for part in argv)
+        suffix = f" {quoted}" if quoted else ""
+        shell_cmd = (
+            f"cd {shlex.quote(str(path))} && "
+            f"{shlex.quote(harness.binary)}{suffix}"
+        )
+        args = _build_launch_argv(
+            shell_cmd, path, _tmux_name(path),
+            is_wsl=_is_wsl(), in_tmux=bool(os.environ.get("TMUX")),
+            wt=wt, shell=os.environ.get("SHELL") or "bash",
+        )
+        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        logger.info("Launched %s in new tab: %s", harness.label, shell_cmd)
+        return True, ""
+    except OSError as exc:
+        logger.error("Failed to launch %s: %s", harness.label, exc)
         return False, str(exc)
 
 

@@ -396,3 +396,96 @@ def test_launch_claude_reports_missing_binary_before_touching_herdr() -> None:
     assert ok is False
     assert "not found" in err
     mock_avail.assert_not_called()
+
+
+# --- launch_agent: any harness (fleet phase 2) -------------------------------
+
+
+from pipnav.core import agents  # noqa: E402
+from pipnav.core.launcher import launch_agent  # noqa: E402
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_agent_starts_codex_through_herdr(mock_popen) -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/codex"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(True, "")
+         ) as mock_open:
+        ok, err = launch_agent(Path("/home/ewise/projects/PIPNAV"), agents.get("codex"))
+
+    assert (ok, err) == (True, "")
+    mock_popen.assert_not_called()
+
+    path, kind, argv = mock_open.call_args.args[:3]
+    assert path == Path("/home/ewise/projects/PIPNAV")
+    assert kind == "codex"  # the kind herdr recognises
+    assert tuple(argv) == ()  # codex gets its own defaults, no flags from us
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_agent_starts_opencode_through_herdr(mock_popen) -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/opencode"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(True, "")
+         ) as mock_open:
+        launch_agent(
+            Path("/tmp/proj"), agents.get("opencode"), extra_flags=("--model", "x/y")
+        )
+
+    kind, argv = mock_open.call_args.args[1], tuple(mock_open.call_args.args[2])
+    assert kind == "opencode"
+    assert argv == ("--model", "x/y")
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_agent_resumes_with_the_harnesss_own_spelling(mock_popen) -> None:
+    """codex resume is a subcommand, not a flag."""
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/codex"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(True, "")
+         ) as mock_open:
+        launch_agent(Path("/tmp/proj"), agents.get("codex"), session_id="abc-123")
+
+    assert tuple(mock_open.call_args.args[2]) == ("resume", "abc-123")
+
+
+def test_launch_agent_reports_a_missing_tool_before_touching_herdr() -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value=None), \
+         patch("pipnav.core.launcher.herdr.is_available") as mock_avail:
+        ok, err = launch_agent(Path("/tmp/proj"), agents.get("codex"))
+
+    assert ok is False
+    assert "codex" in err and "not found" in err
+    mock_avail.assert_not_called()
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_agent_falls_back_to_a_terminal_when_herdr_is_down(mock_popen) -> None:
+    def _which(cmd: str) -> str:
+        return "/usr/bin/" + cmd.replace(".exe", "")
+
+    with patch("pipnav.core.launcher._is_wsl", return_value=False), \
+         patch("pipnav.core.launcher.shutil.which", side_effect=_which), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=False), \
+         patch.dict("os.environ", {"TMUX": "/tmp/x,1,0"}, clear=False):
+        ok, err = launch_agent(Path("/tmp/proj"), agents.get("opencode"))
+
+    assert (ok, err) == (True, "")
+    shell_cmd = mock_popen.call_args[0][0][-1]
+    assert "opencode" in shell_cmd
+
+
+@patch("pipnav.core.launcher.subprocess.Popen")
+def test_launch_agent_does_not_double_launch_when_herdr_refuses(mock_popen) -> None:
+    with patch("pipnav.core.launcher.shutil.which", return_value="/usr/bin/codex"), \
+         patch("pipnav.core.launcher.herdr.is_available", return_value=True), \
+         patch(
+             "pipnav.core.launcher.herdr.open_agent", return_value=(False, "nope")
+         ):
+        ok, err = launch_agent(Path("/tmp/proj"), agents.get("codex"))
+
+    assert (ok, err) == (False, "nope")
+    mock_popen.assert_not_called()

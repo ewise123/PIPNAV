@@ -21,6 +21,8 @@ HELP_TEXT = """\
 [bold]Actions[/]
   v                Open project in VS Code
   c                Launch Claude Code
+  x                Launch Codex
+  o                Launch OpenCode
   r                Resume Claude Code session
   a                Launch recipe picker
 

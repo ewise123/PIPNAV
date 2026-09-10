@@ -13,13 +13,18 @@ from textual.events import Key
 from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DataTable, DirectoryTree, Input, Static
 
-from pipnav.core import herdr
+from pipnav.core import agents, herdr
 from pipnav.core.audio import init_audio, play_sound, shutdown_audio
 from pipnav.core.config import PipNavConfig, load_config, update_config
 from pipnav.core.flavor import random_loading_message
 from pipnav.core.git import GitStatus, compute_badge, get_git_status
 from pipnav.core.indexer import ProjectIndexer
-from pipnav.core.launcher import launch_claude, launch_remote_control, launch_vscode
+from pipnav.core.launcher import (
+    launch_agent,
+    launch_claude,
+    launch_remote_control,
+    launch_vscode,
+)
 from pipnav.core.logging import get_logger, setup_logging
 from pipnav.core.profiles import (
     DEFAULT_PROFILE,
@@ -154,6 +159,8 @@ class PipNavApp(App):
         ("backspace", "go_back", "Back"),
         ("v", "open_vscode", "VS Code"),
         ("c", "open_claude", "Claude"),
+        ("x", "open_codex", "Codex"),
+        ("o", "open_opencode", "OpenCode"),
         ("r", "resume_claude", "Resume"),
         ("slash", "start_search", "Search"),
         ("1", "show_tab('STAT')", "STAT"),
@@ -172,7 +179,7 @@ class PipNavApp(App):
         ("tilde", "toggle_sound", "Sound"),
         ("question_mark", "show_help", "Help"),
         ("f", "session_filter", "Filter"),
-        ("o", "session_sort", "Sort"),
+        ("s", "session_sort", "Sort"),
         ("w", "switch_profile", "Profile"),
         ("a", "pick_recipe", "Action"),
     ]
@@ -183,6 +190,7 @@ class PipNavApp(App):
         "cycle_tag", "edit_memory", "edit_note", "toggle_sound", "show_help",
         "cycle_color_scheme", "session_filter", "session_sort",
         "switch_profile", "pick_recipe", "focus_agent",
+        "open_codex", "open_opencode",
     })
 
     def __init__(self) -> None:
@@ -614,6 +622,36 @@ class PipNavApp(App):
                 self.notify(self._launch_note(f"Claude Code launched for {path.name}"))
             else:
                 self.notify(err, severity="error")
+
+    def _launch_harness(self, key: str) -> None:
+        """Start one of the supported coding tools on the selected project."""
+        path = self._selected_project_path()
+        if not path:
+            return
+        harness = agents.get(key)
+        if harness is None:
+            self.notify(f"Unknown tool: {key}", severity="error")
+            return
+
+        play_sound("launch")
+        ok, err = launch_agent(path, harness)
+        if not ok:
+            self.notify(err, severity="error")
+            return
+
+        # sessions.json drives the [~] badge and is Claude-shaped; the other two
+        # tools get their own session tracking in phase 3.
+        if key == "claude":
+            self._sessions = record_session(path, resumable=True)
+        self.notify(self._launch_note(f"{harness.label} launched for {path.name}"))
+
+    def action_open_codex(self) -> None:
+        """Launch Codex on the selected project."""
+        self._launch_harness("codex")
+
+    def action_open_opencode(self) -> None:
+        """Launch OpenCode on the selected project."""
+        self._launch_harness("opencode")
 
     def action_resume_claude(self) -> None:
         """Resume Claude Code session on selected project."""
