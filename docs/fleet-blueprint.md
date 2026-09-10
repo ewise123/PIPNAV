@@ -1,268 +1,252 @@
 # PipNav Fleet — Blueprint
 
-Date: 2026-09-10
-Status: approved in principle, not started
-Lane: real system (spans sessions, replaces the launch layer, full test coverage)
+Date: 2026-09-10 (revised same day, see *Revision* below)
+Status: phases 0-1 merged to `main`; plan revised, phase 2 not started
+Lane: real system
 
-## What changes
+## What PipNav becomes
 
-PipNav stops spawning its own terminals and starts driving [herdr](https://herdr.dev)
-as its runtime. PipNav remains the control plane — projects, filesystem navigation,
-memory, launch recipes — and herdr owns every agent terminal.
+**A project browser and launcher that lives in a pane beside your agents.**
 
-Two consequences drive the whole design:
+herdr owns every terminal. PipNav owns your projects: the folder tree, the git
+state, the memory notes, the launch recipes, and the ability to start or resume
+Claude Code, Codex or OpenCode in any folder with one key. PipNav runs as a
+**herdr plugin pane**, so launching an agent opens it in the split next to you.
 
-1. **Status stops being a guess.** `session_center.classify_session_status` currently
-   infers status from message age. herdr watches the live terminal and reports
-   `working | blocked | done | idle | unknown` per agent. "Blocked waiting on you"
-   becomes knowable.
-2. **PipNav sees agents it did not launch.** Anything running in herdr shows up,
-   including sessions started by hand.
+```
+┌─ one window: herdr ────────────────────────────────────────────────┐
+│ ┌ PipNav (plugin pane) ───┐ ┌ the agent, live ───────┐ ┌ sidebar ┐ │
+│ │  ai-pulse         [!M]  │ │  ● Claude Code         │ │ scratch │ │
+│ │ ▸PIPNAV           [!M]  │ │    Writing tests…      │ │  claude │ │
+│ │  project-iq    [!M][~]  │ │                        │ │ PIPNAV  │ │
+│ │  c claude  x codex      │ │                        │ │  codex! │ │
+│ │  o opencode  r resume   │ │                        │ │         │ │
+│ └─────────────────────────┘ └────────────────────────┘ └─────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
 
-Three harnesses are in scope: Claude Code, Codex, OpenCode. All three support
-launch-and-resume-by-id today (verified 2026-09-10).
+## Revision — why this plan shrank
+
+The first version of this blueprint had PipNav building a live agent status
+board (the FLEET tab). That was wrong: **herdr's own sidebar already shows every
+agent's status across every project, permanently, two inches to the left.** We
+were about to build a status board next to a status board.
+
+Two alternatives were considered and ruled out:
+
+- **PipNav hosting terminals itself** (becoming the multiplexer). Not viable.
+  Textual has no terminal widget; the only third-party one emulates a terminal in
+  pure Python, is unmaintained, and is too slow for a full-screen agent TUI. This
+  would mean writing a terminal emulator in Python — precisely what herdr already
+  is, in Rust.
+- **Keeping FLEET as a status board anyway.** Rejected: duplicates the sidebar.
+
+So PipNav keeps the jobs herdr cannot do, and drops the rest:
+
+| Job | Owner |
+|---|---|
+| Terminals, panes, persistence, live agent status, blocked-agent notifications | **herdr** |
+| Your projects, folder navigation, git state, memory notes, launch recipes | **PipNav** |
+| Launching and resuming Claude / Codex / OpenCode per project | **PipNav** |
+| Session history across all three harnesses | **PipNav** |
 
 ## Decisions taken
 
 | Question | Decision |
 |---|---|
-| Runtime | herdr as engine. WT/tmux launcher retained as graceful fallback only. |
-| Project-management layer | **Not in scope.** PipNav keeps exactly the project browsing / filesystem / launch surface it has. |
-| GitHub issues integration | Parked. Revisit after the core lands. |
-| Landing view | FLEET. Project browser stays first-class with folder navigation and launch-in-any-folder intact — not demoted. |
+| Runtime | herdr. PipNav never owns a terminal. |
+| PipNav's home | A herdr plugin pane, split placement. Standalone TUI kept as fallback. |
+| Project-management layer | Not in scope. GitHub issues parked. |
+| Placement | One herdr workspace per project; a second agent in a project gets its own tab. |
+| FLEET's job | **Launch and resume across harnesses — not live status.** Live status is herdr's. |
+| Blocked-agent chime | herdr's (`notification show --sound request`). Dropped from our scope. |
+
+## The plugin
+
+`herdr-plugin.toml` at the repo root, plus `herdr/pipnav-pane.sh`. Link with:
+
+```
+herdr plugin link /path/to/PIPNAV
+```
+
+The wrapper resolves the project virtualenv from `HERDR_PLUGIN_ROOT`, so no path
+is hardcoded. Verified working: PipNav renders fully inside a herdr split pane,
+with real git state and README, from a repo-relative link.
+
+Plugin panes receive a useful environment for free:
+
+| Variable | Use |
+|---|---|
+| `HERDR_SOCKET_PATH` | the API socket, already honoured by `core/herdr.py` |
+| `HERDR_ENV=1` | tells PipNav it is inside herdr (`in_herdr()`) |
+| `HERDR_PLUGIN_ROOT` | locate the virtualenv without hardcoding a home directory |
+| `HERDR_PLUGIN_CONTEXT_JSON` | workspace id and label, workspace cwd, focused pane cwd and status |
+| `HERDR_PLUGIN_STATE_DIR` / `_CONFIG_DIR` | per-plugin storage, if ever needed |
+| `HERDR_BIN_PATH` | the herdr binary, for CLI calls |
+
+`HERDR_PLUGIN_CONTEXT_JSON` is worth using: it tells PipNav which project
+workspace it was opened in, so the pane can preselect that project.
 
 ## Architecture
 
-```
-                 ┌────────────────────────────────────────┐
-    user  ─────► │  PipNav — control plane                │
-                 │  projects · files · memory · recipes   │
-                 └──────────────┬─────────────────────────┘
-                                │  newline-delimited JSON
-                                │  over ~/.config/herdr/herdr.sock
-                 ┌──────────────▼─────────────────────────┐
-                 │  herdr — runtime                       │
-                 │  owns every pty, survives detach       │
-                 └──┬───────────┬──────────┬──────────────┘
-                    │           │          │
-                 Claude       Codex     OpenCode
-```
+### Built and merged
 
-### New core modules
+- **`core/herdr.py`** — socket client over `~/.config/herdr/herdr.sock`. Stdlib
+  only. Degrades to unavailable/empty, never raises at PipNav. Includes
+  `agent_name()` (herdr's naming rules) and `_undo_placement` (clean up a pane
+  whose agent failed to start).
+- **`core/launcher.py`** — `launch_claude` prefers herdr, falls back to WT/tmux
+  only when herdr is not running. `_claude_flags` shared by both routes.
+- **`main.py`** — `_launch_note` names the destination when PipNav is not itself
+  inside herdr.
+- **`ui/fleet_tab.py`** — exists, but see *Phasing*; most of it is going.
 
-**`core/herdr.py`** — socket client. Newline-delimited JSON over a unix domain
-socket. Stdlib `socket` + `json` only; no new dependency. Socket resolution order
-matches herdr's own: `HERDR_SOCKET_PATH` env, then `HERDR_SESSION` env, then
-`~/.config/herdr/herdr.sock`.
+### Still to build
 
-Methods PipNav needs:
+**`core/agents.py`** — the harness registry, and now the centre of PipNav's
+value. One frozen dataclass per harness: display name, binary, herdr `kind`,
+launch argv builder, resume argv builder, session store reader. Adding a fourth
+harness becomes a data change.
 
-| Method | Used for |
-|---|---|
-| `ping` | availability probe, drives the fallback decision |
-| `session.snapshot` | bootstrap the fleet view in one round trip |
-| `agent.list` | live status per agent |
-| `agent.focus` | jump to a pane from the fleet view |
-| `agent.prompt` | send a prompt without leaving PipNav |
-| `workspace.create` / `workspace.list` / `workspace.focus` | one workspace per project |
-| `tab.create`, `pane.split` | place a new agent |
-| `events.subscribe` | push status changes, replaces polling |
+Verified per harness (2026-09-10, on this machine):
 
-The API negotiates supported methods at connect time and returns ordinary errors for
-unsupported ones. **Every call must tolerate `method not supported` and a dead socket
-without crashing** — herdr is at v0.9.0 and moving fast.
+| Harness | herdr kind | Session store | Resume |
+|---|---|---|---|
+| Claude Code | `claude` | `~/.claude/projects/<encoded-path>/*.jsonl` | `claude --resume <id>` |
+| Codex | `codex` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, line 1 `session_meta` carries `id` + `cwd` | `codex resume <id>` |
+| OpenCode | `opencode` | `~/.local/share/opencode/opencode.db`, `session` table: `id`, `directory`, `title`, `time_updated`, `cost`, tokens | `opencode -s <id>` |
 
-**`core/agents.py`** — the harness registry. One frozen dataclass per supported
-agent describing: display name, binary, launch argv builder, resume argv builder,
-and which session store to read. Adding a fourth agent is a data change, not a code
-change.
+herdr recognises 21 agent kinds; all three of ours are among them.
 
-Verified facts per harness:
+**`core/codex_sessions.py`** — walk the dated rollout tree, read **only the
+first line** of each file, take recency from mtime. Rollouts reach tens of MB.
 
-| Agent | Session store | Resume |
-|---|---|---|
-| Claude Code | `~/.claude/projects/<encoded-path>/*.jsonl` | `claude --resume <id>` |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`; line 1 is a `session_meta` record carrying `id`, `cwd`, `timestamp` | `codex resume <id>` |
-| OpenCode | `~/.local/share/opencode/opencode.db`, `session` table: `id`, `directory`, `title`, `time_updated`, `cost`, token counts | `opencode -s <id>` |
+**`core/opencode_sessions.py`** — read-only SQLite (`mode=ro` URI) against a live
+database. Return empty on lock contention rather than raising. Stdlib `sqlite3`.
+Richest rows of the three: title, folder, last touched, cost, tokens.
 
-**`core/codex_sessions.py`** — walk the dated rollout tree, read **only the first
-line** of each file for `session_meta`, take recency from file mtime. Rollout files
-reach tens of megabytes; never parse them whole.
+**`core/sessions_all.py`** — one list of every past session across the three
+harnesses, per project, newest first, each resumable. Live ones get a LIVE badge
+from `herdr.list_agents()`. Absorbs `core/session_center.py`.
 
-**`core/opencode_sessions.py`** — read-only SQLite query against a live database.
-Open with `mode=ro` via URI, join `session` to `project`, and handle a locked or
-mid-WAL-checkpoint database by returning empty rather than raising. Stdlib `sqlite3`.
-
-OpenCode gives the richest row of the three: title, folder, last touched, cost, and
-tokens all come free.
-
-**`core/fleet.py`** — merges herdr's live view with on-disk history from all three
-stores into one `FleetEntry` list. Absorbs `core/session_center.py`.
-
-Precedence rule: **herdr is authoritative wherever it has an opinion; disk history
-fills the rest** — yesterday's sessions, sessions on another machine, sessions
-started outside herdr. Anything herdr does not see falls back to the existing
-age-based classification, clearly marked as inferred rather than observed.
-
-### Changed modules
-
-- **`core/launcher.py`** — gains a herdr path: create a workspace for the project if
-  absent, open a pane at the project directory, run the built argv. Existing
-  `_build_launch_argv` WT/tmux code stays as the fallback when `ping` fails. PipNav
-  must never become unusable because herdr is down.
-- **`core/profiles.py`** — `LaunchRecipe` gains `agent: str = "claude"` and
-  `claude_flags` generalises to `flags`. Existing profiles on disk keep working
-  unchanged because the default is `claude`.
-- **`core/audio.py`** — already exists, already plays sounds. Wire the blocked-agent
-  event to a chime. No new code beyond the event handler.
-
-### UI shape
-
-Tabs become `FLEET | PROJECTS | FILES | LOG | INV`.
-
-FLEET is the landing view: one row per live-or-recent agent across every project —
-harness, project, observed status, current activity, age. `Enter` focuses that pane
-in herdr, `r` resumes, `p` sends a prompt, `k` kills.
-
-PROJECTS is today's left panel plus STAT, unchanged in behaviour: folder navigation,
-drill in and out, launch an agent in any folder from one key.
-
-This absorbs open defect #2 from `docs/next-steps.md` — the SESSIONS/CONSOLE tab
-overlap disappears, because both collapse into FLEET.
+The live badge is an *annotation*, not a board. PipNav does not rank, filter or
+alert on live status; herdr does that.
 
 ## Phasing
 
-Every phase ends with something visible on screen.
+| Phase | Deliverable | Demo | State |
+|---|---|---|---|
+| 0 | herdr socket client | PipNav lists live agents | **done, merged** |
+| 1 | launch into herdr panes | `c` opens Claude in a pane | **done, merged** |
+| 1b | plugin manifest | PipNav opens as a split beside an agent | **verified, uncommitted** |
+| 2 | `core/agents.py`; Codex + OpenCode launch | `c`/`x`/`o` start any of three | next |
+| 3 | Codex + OpenCode session readers | resume any of three by id | |
+| 4 | SESSIONS view: all harnesses, one list, LIVE badges | one place to resume anything | shrunk |
+| ~~5~~ | ~~events + chime~~ | **dropped — herdr notifies** | |
+| — | GitHub issues | parked | |
 
-| Phase | Deliverable | Demo |
-|---|---|---|
-| 0 | herdr installed; `core/herdr.py` connects | PipNav lists live agents |
-| 1 | Launch through herdr, fallback intact | `c` opens Claude in a herdr pane |
-| 2 | `core/agents.py` registry; Codex + OpenCode launch | `c` prompts for which harness |
-| 3 | Codex + OpenCode session readers | resume works for all three |
-| 4 | `core/fleet.py` merge; FLEET as landing view | one screen, every agent, real status |
-| 5 | `events.subscribe`; chime on blocked | walk away, get called back |
-| — | GitHub issues | parked |
+Phase 4 also settles the open defect in `docs/next-steps.md`: the SESSIONS and
+CONSOLE tabs both showing Claude sessions. One list replaces both, and the FLEET
+tab built in phase 0 folds into it. The `HERDR` status-bar indicator stays — it
+is cheap and answers "is the runtime up".
 
 ## Test plan
 
-Write-first, per project convention. Show it failing before the code exists.
+Write-first. Heavy coverage where being wrong is silent:
 
-Heavy coverage — being wrong here is silent:
+- **`core/agents.py`** argv construction. A dropped flag launches an agent in the
+  wrong permission mode with no visible symptom.
+- **`core/codex_sessions.py`**, **`core/opencode_sessions.py`**. Outside data at a
+  trust boundary: malformed JSON, truncated rollouts, missing `cwd`, a locked
+  database, schema drift after an update.
+- **`core/sessions_all.py`** dedup and ordering across three stores, and the LIVE
+  badge matching the right session.
+- **`core/herdr.py`** error paths — done, 47 tests.
 
-- **`core/fleet.py`** merge precedence. Two sources, explicit priority rules, and a
-  wrong merge silently misreports which agent needs attention.
-- **`core/agents.py`** argv construction. A dropped or misordered flag launches an
-  agent in the wrong permission mode without any visible symptom.
-- **`core/codex_sessions.py`** and **`core/opencode_sessions.py`**. Outside data
-  entering the system: malformed JSON, truncated rollouts, missing `cwd`, locked
-  database, schema drift. Validate at the boundary.
-- **`core/herdr.py`** error paths: socket absent, socket dead mid-request, unknown
-  method, malformed response, partial line.
+Assert wire payloads, not just return values. Phase 0 shipped a bug
+(`focus_agent` sending `pane_id` where herdr wants `target`) that a return-value
+test could not catch.
 
-No tests for: FLEET view layout, styling, keybinding wiring. Those get caught by
-looking at the screen.
+Unit tests must not depend on whether herdr is running. `tests/test_launcher.py`
+has an autouse `_herdr_absent` fixture; anything touching the socket needs the
+same. Before it existed, running the suite on a machine with herdr up started a
+real Claude process and left a stray workspace behind.
+
+Not tested: pane layout, styling, keybinding wiring.
 
 ## Risks
 
-1. **herdr is young.** v0.9.0, five months old, moving fast. The socket API version-
-   negotiates, which helps, but treat every method as optional and degrade.
-2. **Windows Terminal tabs go away.** The biggest habit change in this work, and the
-   thing most likely to feel worse before it feels better. Phase 1 keeps the fallback
-   partly so this is reversible.
-3. **`opencode.db` is live.** Read-only access to a database another process is
-   writing. Handle lock contention by returning empty, never by raising.
-4. **Codex rollout size.** First line only, always.
+1. **herdr is young** — v0.9.0, five months old. Treat every method as optional
+   and degrade. Plugin v1 has no runtime action registration and no native
+   non-terminal UI; we need neither.
+2. **PipNav becomes a thing you run inside herdr.** Standalone mode stays, but
+   the good experience is the plugin one. This is the real adoption cost.
+3. **`opencode.db` is live** — another process writes it while we read.
+4. **Codex rollout size** — first line only, always.
+5. **WSL fallback untested.** The dev host `ca-agent-host` is plain Linux, so the
+   fallback there takes the tmux path. The `wt.exe` branch has unit tests but has
+   not been watched working.
 
-## Notes for the implementor
+## The user's actual setup (2026-09-10)
 
-Existing conventions hold and are not up for renegotiation here:
+Worth recording, because it corrected an assumption in the first draft. The user
+SSHes from a Windows machine to `ca-agent-host` and already lives in a **tmux**
+session named `pipnav`, created Aug 31:
 
-- `core/` has no Textual imports and is independently testable.
-- Frozen dataclasses for every data type.
-- One widget per file in `ui/`; all CSS in `ui/app.tcss`.
-- `@work(exclusive=True, thread=True)` plus `call_from_thread` for blocking I/O.
-- State as JSON under `~/.pipnav/`.
-- Never crash; degrade and log to `~/.pipnav/debug.log`.
-- Never merge to main without explicit permission.
+```
+tmux session "pipnav"
+  1: pipnav   python     ← PipNav
+  2: SSAPRO   claude     ← sessions PipNav launched, as tmux windows
+  3-6: …      claude
+```
 
-The event subscription in phase 5 is a long-lived socket read. It needs its own
-thread and a clean shutdown path — it is the first genuinely long-lived connection
-PipNav has owned.
+So "one window, switch inside it" is not a change for this user — it is what
+they already do, via tmux. herdr replaces tmux in that role, with the same `C-b`
+prefix and mouse already on in both. Earlier warnings in this document about
+losing per-project Windows Terminal tabs were wrong: `_is_wsl()` is false on this
+host, so that code path never ran for them.
 
-## Phase 0 findings (2026-09-10)
+Sessions started outside herdr (their five long-running ones) cannot be adopted
+into it retroactively. They remain visible via session history, never as live
+agents.
 
-Verified against herdr 0.9.0, protocol 22, on this machine. Two of these
-contradict or are absent from herdr's published docs.
+## herdr findings
+
+Verified against herdr 0.9.0, protocol 22. Several contradict or are absent from
+herdr's published docs. `herdr api schema --json` is the authoritative contract —
+102 methods with full request and response shapes; prefer it over the website.
 
 1. **The server closes the connection after every response.** One request per
-   connection; there is no persistent client to hold open. `core/herdr.py` opens
-   a socket per call accordingly. Phase 5's `events.subscribe` is presumably the
-   exception (the server keeps streaming) but that is unverified — confirm before
-   building the event reader.
-2. **`params` is required on every request**, including methods whose params are
-   empty. Omitting the key is rejected as an invalid request.
-3. **`pane.report_agent` accepts only `idle | working | blocked | unknown`.**
-   `done` is derived by herdr itself — an agent that finished while its tab was
-   unviewed — and cannot be reported. It *is* a valid value to read back from
-   `agent.list`, so the client accepts all five.
-4. **`herdr api schema --json` is the authoritative contract** — 102 methods with
-   full request and response shapes. Prefer it over the website docs, which are
-   thinner and in places out of date.
-5. `AgentInfo` carries everything the fleet board needs: `pane_id`, `tab_id`,
-   `workspace_id`, `agent`, `agent_status`, `cwd`, `agent_session` (`kind` +
-   `value`, for resume), and `focused`.
-6. **Activity text is weak for agents herdr detects but that set no title.**
-   `AgentInfo.title` was absent entirely on a reported pane, leaving
-   `terminal_title_stripped`, which on a shell pane is just the prompt. Real
-   Claude and Codex panes are expected to set a useful title — verify in phase 1
-   before adding any heuristic.
+   connection. Event subscriptions are presumably the exception; unverified.
+2. **`params` is required on every request**, even when empty.
+3. **`agent.*` methods address by `target`; only `agent.start` takes `pane_id`.**
+   Copying the `agent.start` shape elsewhere gives `missing field 'target'`.
+   Shipped as a bug in phase 0, now fixed.
+4. **Agent names: `^[a-z][a-z0-9_-]{0,31}$`, unique among live agents.** A fixed
+   name per kind allows exactly one Claude to exist anywhere. Not in the schema.
+5. **Creating a pane and running an agent are two calls.** Neither
+   `workspace.create`, `tab.create` nor `pane.split` takes a command.
+   `workspace.create` also makes a first tab and pane, so the first agent in a
+   project needs no `tab.create`. `agent.start` returns the argv it ran.
+6. **A failed `agent.start` leaves a stray workspace or tab** unless closed.
+7. **A freshly started agent is not ready for input.** Claude Code opens on its
+   "do you trust this folder?" prompt; text sent then answers the dialog and
+   exits the agent. Gate any prompt-sending on `launch_pending` /
+   `interactive_ready`.
+8. **`pane.report_agent` accepts only `idle | working | blocked | unknown`.**
+   `done` is server-derived and readable but not reportable. Per herdr's own
+   skill doc, `idle` and `done` both mean "ready for input"; only `blocked`
+   means a human is needed.
+9. **Activity text is weak.** A real Claude pane's terminal title was the launch
+   command, then `Claude Code` — an app name, not activity. Useful activity text
+   needs `agent.read`, not the terminal title.
+10. **Plugin panes**: `[[panes]]` in the manifest; `width`/`height` are accepted
+    only for `popup` placement, not `split`.
+11. `pane.read` nests its payload under `read`.
+12. Multiple clients attach to one server, each viewing its own workspace — two
+    terminal windows onto the same session is supported (verified).
+13. herdr warns if tmux `focus-events` is off. Better not to nest herdr inside
+    tmux at all: both use `C-b`.
 
-Also note: the project venv had lost `pytest`. Reinstalled via
+Also: the project venv had lost `pytest`; reinstalled with
 `uv pip install --python .venv/bin/python pytest`.
-
-## Phase 1 findings (2026-09-10)
-
-7. **`agent.*` methods address by `target`, not `pane_id`.** The one exception is
-   `agent.start`, which takes `pane_id`. Copying the `agent.start` shape into any
-   other `agent.*` call produces `missing field 'target'`. This shipped as a bug
-   in phase 0's `focus_agent` and is now fixed and covered by a test asserting
-   the wire payload — assert payloads, not just return values.
-8. **Creating a pane and running an agent are two steps.** Neither
-   `workspace.create`, `tab.create` nor `pane.split` accepts a command; they make
-   a shell pane at a cwd. `agent.start` then runs the agent in that pane and
-   returns the exact argv it used. `workspace.create` also creates a first tab
-   and pane, so the first agent in a project needs no extra `tab.create`.
-9. **A freshly started agent is not necessarily ready for input.** Claude Code
-   opened on its "do you trust this folder?" consent prompt; text sent at that
-   moment answered the dialog and exited the agent. `AgentInfo.launch_pending`
-   and `interactive_ready` exist for this — gate any prompt-sending on them, and
-   never assume a started agent can receive text. Affects phase 4/5's prompt key,
-   not phase 1's launch.
-10. **Activity text stays weak.** A real Claude pane's terminal title was the
-    launch command (`claude --permission-mode auto`), not what it was doing.
-    Resolving finding 6 properly needs `agent.read` or `state_labels`, not the
-    terminal title. Treat the DOING column as low-value until phase 4.
-11. `pane.read` nests its payload under `read`: `{"type":"pane_read","read":{"text":...}}`.
-12. `agent.start`'s `kind` accepts the ids from `server.agent_manifests` — 21
-    available here, including `claude`, `codex` and `opencode`.
-13. **Agent names are constrained and must be unique session-wide.**
-    `^[a-z][a-z0-9_-]{0,31}$`, and `agent.start` rejects a name already in use
-    anywhere in the session. A fixed name per kind therefore allows exactly one
-    Claude to exist at all — which defeats a multi-project fleet. `agent_name()`
-    slugifies `kind` + project and, on `agent_name_taken`, requalifies with the
-    pane id. Neither constraint appears in the JSON schema; both were found only
-    by launching for real.
-14. **Clean up placement when an agent fails to start.** A failed `agent.start`
-    otherwise leaves an empty workspace or tab in the user's herdr window.
-    `_undo_placement` closes the workspace when we created it, the tab when we
-    reused an existing project workspace. Verified against the live server.
-15. **Tests that reach a live socket must be isolated.** Before the autouse
-    `_herdr_absent` fixture existed, running `tests/test_launcher.py` on a
-    machine with herdr up started a real Claude process and left a stray
-    workspace behind. Unit tests must never depend on whether herdr happens to
-    be running.
-16. Confirmed working: one workspace per project, a new tab per agent, two
-    agents of the same kind in one project, and a second project reusing its
-    existing workspace. Claude sets its terminal title to "Claude Code" once
-    running — an app name, not activity, so finding 10 stands.
