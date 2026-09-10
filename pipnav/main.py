@@ -546,7 +546,13 @@ class PipNavApp(App):
         )
         self.query_one("#FILES", FilesTab).project_path = path
         self.query_one("#LOG", LogTab).project_path = path
-        if self._current_tab == "CONSOLE":
+
+        # Only follow a deliberate move between projects. A background refresh
+        # rebuilds the list and re-fires this event; acting on that threw away
+        # the user's ALL-projects view every 10 seconds.
+        if self._current_tab == "CONSOLE" and getattr(
+            event, "user_initiated", True
+        ):
             self._set_console_project_filter(path)
 
     def _selected_project_path(self) -> Path | None:

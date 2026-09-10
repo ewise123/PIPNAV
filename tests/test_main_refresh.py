@@ -421,3 +421,54 @@ def test_resume_pick_recipe_scopes_console_to_selected_project(
     assert console_calls == [Path("/tmp/demo")]
     assert content.current == "CONSOLE"
     assert header.active_tab == "CONSOLE"
+
+
+def test_background_refresh_does_not_reset_the_console_project_filter(monkeypatch):
+    """A refresh must not throw away the user's ALL-projects view.
+
+    Rebuilding the project list re-fires a selection event. Treating that as a
+    user action silently narrowed CONSOLE back to one project every 10 seconds.
+    """
+    from pipnav.ui.project_list import ProjectList
+
+    app = PipNavApp()
+    app._current_tab = "CONSOLE"
+    applied: list[object] = []
+    monkeypatch.setattr(
+        app, "_set_console_project_filter", lambda path: applied.append(path)
+    )
+    monkeypatch.setattr(app, "query_one", lambda *a, **k: SimpleNamespace(
+        update_detail=lambda *a, **k: None, project_path=None,
+    ))
+    monkeypatch.setattr("pipnav.main.play_sound", lambda *a, **k: None)
+
+    background = ProjectList.Selected(
+        path=Path("/home/ewise/projects/PIPNAV"), name="PIPNAV",
+        user_initiated=False,
+    )
+    app._on_project_selected(background)
+    assert applied == [], "a background refresh changed the filter"
+
+
+def test_moving_the_cursor_still_refilters_console(monkeypatch):
+    """Deliberately moving between projects should still follow in CONSOLE."""
+    from pipnav.ui.project_list import ProjectList
+
+    app = PipNavApp()
+    app._current_tab = "CONSOLE"
+    applied: list[object] = []
+    monkeypatch.setattr(
+        app, "_set_console_project_filter", lambda path: applied.append(path)
+    )
+    monkeypatch.setattr(app, "query_one", lambda *a, **k: SimpleNamespace(
+        update_detail=lambda *a, **k: None, project_path=None,
+    ))
+    monkeypatch.setattr("pipnav.main.play_sound", lambda *a, **k: None)
+
+    app._on_project_selected(
+        ProjectList.Selected(
+            path=Path("/home/ewise/projects/PIPNAV"), name="PIPNAV",
+            user_initiated=True,
+        )
+    )
+    assert applied == [Path("/home/ewise/projects/PIPNAV")]
