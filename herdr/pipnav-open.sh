@@ -6,6 +6,5 @@ herdr_bin="${HERDR_BIN_PATH:-herdr}"
 exec "$herdr_bin" plugin pane open \
     --plugin pipnav.launcher \
     --entrypoint browser \
-    --placement split \
-    --direction right \
+    --placement tab \
     --focus

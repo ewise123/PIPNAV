@@ -10,8 +10,9 @@ platforms = ["linux", "macos"]
 id = "browser"
 title = "PipNav"
 command = ["sh", "-c", "exec \"$HERDR_PLUGIN_ROOT/herdr/pipnav-pane.sh\""]
-placement = "split"
-direction = "right"
+# A full-width tab, not a split. PipNav's layout needs ~120 columns; in an
+# 89-column split its logo wraps mid-glyph and project names truncate.
+placement = "tab"
 
 [[actions]]
 id = "open-pipnav"
