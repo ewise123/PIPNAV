@@ -1,3 +1,6 @@
+> **Stale in places.** Items 2 and 6 were overtaken by the herdr/fleet work
+> on 2026-09-10 and are annotated inline. See `docs/fleet-blueprint.md` for
+> what actually shipped.
 # PipNav Next Steps
 
 Date: 2026-04-08
@@ -34,7 +37,12 @@ These are bugs, gaps, and UX debt that should be addressed first.
 
 Fix: rewrite the help text to match current bindings. Keep it accurate going forward by updating it in every feature PR.
 
-### 2. SESSIONS tab and CONSOLE tab overlap
+### 2. SESSIONS tab and CONSOLE tab overlap — RESOLVED 2026-09-10
+
+Resolved differently from the plan below. There is no ALL/project toggle:
+CONSOLE shows the selected project's sessions, INV shows every project's, and
+both cover Claude, Codex and OpenCode. The old plan is kept for context.
+
 
 Two tabs show Claude sessions:
 - **SESSIONS** (tab 4) — sessions for the currently selected project only
@@ -84,9 +92,12 @@ Files affected:
 
 After fixing the above, these are the two highest-value features remaining.
 
-### 6. Inventory Portfolio Board (original roadmap #8)
+### 6. Inventory Portfolio Board (original roadmap #8) — SUPERSEDED 2026-09-10
 
-The existing INV tab is a static DataTable dump. Upgrade it into a triage dashboard.
+INV is no longer a project table. It is now the cross-project session view;
+the project table still exists in `pipnav/ui/inventory_tab.py` but is not
+mounted. If a portfolio triage board is still wanted it needs a new home, and
+the attention scoring below would apply to that. The original plan follows.
 
 **What to build:**
 - Filter bar at the top (like CONSOLE tab has) cycling through: ALL, DIRTY, STALE, ACTIVE (has Claude session), CLEAN
