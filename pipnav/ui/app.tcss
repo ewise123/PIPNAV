@@ -60,7 +60,25 @@ DirectoryTree:focus {
     color: $primary;
     dock: right;
     width: auto;
+    height: auto;
     padding: 0 2;
+}
+
+.tab-button {
+    color: $secondary;
+    width: auto;
+    margin: 0 1;
+}
+
+.tab-button:hover {
+    color: $primary;
+    text-style: bold;
+}
+
+.tab-button.-active {
+    background: $primary;
+    color: $surface;
+    text-style: bold;
 }
 
 /* ── Main Layout ───────────────────────────────────────────── */

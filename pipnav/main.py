@@ -563,6 +563,11 @@ class PipNavApp(App):
             self._set_console_project_filter(path)
         self._apply_tab()
 
+    @on(PipNavHeader.TabClicked)
+    def _on_tab_clicked(self, event: PipNavHeader.TabClicked) -> None:
+        """Switch tabs when a tab name is clicked."""
+        self.action_show_tab(event.tab_name)
+
     def action_show_tab(self, tab: str) -> None:
         """Switch to a specific tab."""
         if tab == "CONSOLE":
