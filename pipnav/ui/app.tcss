@@ -11,11 +11,11 @@ Screen {
     layers: default overlay;
 }
 
+/* No scrollbars anywhere. herdr owns the mouse when PipNav runs inside it,
+   so a scrollbar is an affordance you cannot use — it invites a click and
+   drag that never arrives. Content still scrolls with j/k and the arrows. */
 * {
-    scrollbar-background: $surface;
-    scrollbar-color: $secondary;
-    scrollbar-color-hover: $primary;
-    scrollbar-color-active: $primary;
+    scrollbar-size: 0 0;
 }
 
 *:focus {
@@ -323,8 +323,8 @@ DataTable > .datatable--odd-row {
 /* ── Help Overlay ─────────────────────────────────────────── */
 
 HelpScreen #help-container {
-    scrollbar-color: $primary;
-    scrollbar-color-hover: $primary;
+    /* colours for a scrollbar that is no longer drawn — see the global rule */
+    scrollbar-size: 0 0;
 }
 
 /* ── Notifications ─────────────────────────────────────────── */
